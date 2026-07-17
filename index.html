@@ -129,7 +129,7 @@ const SUPABASE_URL = 'https://pbeqwuzjeodzucgstnjg.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBiZXF3dXpqZW9kenVjZ3N0bmpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NjQ0MjYsImV4cCI6MjA5NzQ0MDQyNn0.AJJJRdSrEIS3vk5c2Fteecq4LGzbjFNLnm_6pbrxfeE';
 
 const { createClient } = supabase;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let state = { session: null, route: 'dashboard' };
 
@@ -158,16 +158,16 @@ function toast(msg) {
 async function login(email, password) {
   const btn = document.querySelector('.login-card button');
   btn.disabled = true; btn.textContent = 'Signing in...';
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
   btn.disabled = false; btn.textContent = 'Sign In';
   if (error) { document.querySelector('.login-card .error').textContent = error.message; return; }
   let role = data.user?.user_metadata?.role;
   if (role !== 'admin') {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
+    const { data: profile } = await _supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
     role = profile?.role;
   }
   if (role !== 'admin') {
-    await supabase.auth.signOut();
+    await _supabase.auth.signOut();
     document.querySelector('.login-card .error').textContent = 'Access denied. Admin account required.';
     return;
   }
@@ -176,7 +176,7 @@ async function login(email, password) {
 }
 
 async function logout() {
-  await supabase.auth.signOut();
+  await _supabase.auth.signOut();
   state.session = null;
   navigate('login');
 }
@@ -184,10 +184,10 @@ async function logout() {
 // ── API helpers ──
 async function fetchStats() {
   const [profiles, businesses, jobs, quotes] = await Promise.all([
-    supabase.from('profiles').select('id, role'),
-    supabase.from('business_profiles').select('id, verification_status'),
-    supabase.from('jobs').select('status'),
-    supabase.from('quotes').select('status, total'),
+    _supabase.from('profiles').select('id, role'),
+    _supabase.from('business_profiles').select('id, verification_status'),
+    _supabase.from('jobs').select('status'),
+    _supabase.from('quotes').select('status, total'),
   ]);
   const p = profiles.data || [], b = businesses.data || [], j = jobs.data || [], q = quotes.data || [];
   let customers = 0, bizOwners = 0, techs = 0;
@@ -202,32 +202,32 @@ async function fetchStats() {
 }
 
 async function fetchUsers() {
-  const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+  const { data } = await _supabase.from('profiles').select('*').order('created_at', { ascending: false });
   return data || [];
 }
 
 async function fetchBusinesses() {
-  const { data } = await supabase.from('business_profiles').select('*').order('created_at', { ascending: false });
+  const { data } = await _supabase.from('business_profiles').select('*').order('created_at', { ascending: false });
   return data || [];
 }
 
 async function fetchJobs() {
-  const { data } = await supabase.from('jobs').select('*, profiles!inner(full_name)').order('created_at', { ascending: false }).limit(100);
+  const { data } = await _supabase.from('jobs').select('*, profiles!inner(full_name)').order('created_at', { ascending: false }).limit(100);
   return data || [];
 }
 
 async function fetchQuotes() {
-  const { data } = await supabase.from('quotes').select('*, profiles!quotes_customer_id_fkey(full_name)').order('created_at', { ascending: false }).limit(100);
+  const { data } = await _supabase.from('quotes').select('*, profiles!quotes_customer_id_fkey(full_name)').order('created_at', { ascending: false }).limit(100);
   return data || [];
 }
 
 async function fetchInvoices() {
-  const { data } = await supabase.from('invoices').select('*, profiles!inner(full_name)').order('created_at', { ascending: false }).limit(100);
+  const { data } = await _supabase.from('invoices').select('*, profiles!inner(full_name)').order('created_at', { ascending: false }).limit(100);
   return data || [];
 }
 
 async function fetchCategories() {
-  const { data } = await supabase.from('service_categories').select('*').order('display_name');
+  const { data } = await _supabase.from('service_categories').select('*').order('display_name');
   return data || [];
 }
 
@@ -401,7 +401,7 @@ async function loadBusinesses(el) {
 }
 
 window.verifyBiz = async function(id, status) {
-  await supabase.from('business_profiles').update({ verification_status: status }).eq('id', id);
+  await _supabase.from('business_profiles').update({ verification_status: status }).eq('id', id);
   toast(`Business ${status === 'verified' ? 'approved' : 'rejected'}`);
   render();
 };
@@ -497,7 +497,7 @@ window.addCategory = async function() {
   const display = document.getElementById('cat-display').value.trim();
   const desc = document.getElementById('cat-desc').value.trim();
   if (!name || !display) { toast('Slug and display name are required'); return; }
-  await supabase.from('service_categories').insert({ name, display_name: display, description: desc });
+  await _supabase.from('service_categories').insert({ name, display_name: display, description: desc });
   document.getElementById('cat-name').value = '';
   document.getElementById('cat-display').value = '';
   document.getElementById('cat-desc').value = '';
@@ -507,7 +507,7 @@ window.addCategory = async function() {
 
 window.deleteCategory = async function(id, name) {
   if (!confirm(`Delete "${name}"?`)) return;
-  await supabase.from('service_categories').delete().eq('id', id);
+  await _supabase.from('service_categories').delete().eq('id', id);
   toast('Category deleted');
   render();
 };
@@ -538,15 +538,15 @@ function statusBadge(s) {
 // ── Init ──
 (async () => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await _supabase.auth.getSession();
     state.session = session;
     if (state.session) {
       let role = state.session.user?.user_metadata?.role;
       if (role !== 'admin') {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', state.session.user.id).maybeSingle();
+        const { data: profile } = await _supabase.from('profiles').select('role').eq('id', state.session.user.id).maybeSingle();
         role = profile?.role;
       }
-      if (role !== 'admin') { await supabase.auth.signOut(); state.session = null; }
+      if (role !== 'admin') { await _supabase.auth.signOut(); state.session = null; }
     }
     state.route = window.location.hash.slice(1) || (state.session ? 'dashboard' : 'login');
     render();
