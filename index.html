@@ -378,17 +378,22 @@ async function loadBusinesses(el) {
     const bizs = await fetchBusinesses();
     if (!bizs.length) { el.innerHTML = '<div class="empty">No businesses found</div>'; return; }
     el.innerHTML = `<div class="card"><table>
-      <thead><tr><th>Name</th><th>Phone</th><th>Suburb</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Logo</th><th>Name</th><th>Phone</th><th>Suburb</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>${bizs.map(b => {
         const status = b.verification_status || 'unverified';
         const badgeClass = status === 'verified' ? 'badge-green' : status === 'pending' ? 'badge-orange' : 'badge-gray';
-        const actions = status === 'pending' ? `
+        const logoUrl = b.logo_url || (b.logo_path ? publicUrl(b.logo_path) : null);
+        const actions = `
           <div class="row-actions">
-            <button class="btn btn-sm btn-success" onclick="verifyBiz('${b.id}','verified')">✓ Approve</button>
-            <button class="btn btn-sm btn-danger" onclick="verifyBiz('${b.id}','rejected')">✗ Reject</button>
-          </div>` : '';
+            <button class="btn btn-sm btn-primary" onclick="editBiz('${b.id}')">✎ Edit</button>
+            ${status === 'pending' ? `
+              <button class="btn btn-sm btn-success" onclick="verifyBiz('${b.id}','verified')">✓</button>
+              <button class="btn btn-sm btn-danger" onclick="verifyBiz('${b.id}','rejected')">✗</button>
+            ` : ''}
+          </div>`;
         return `<tr>
-          <td>${esc(b.business_name || '—')}</td>
+          <td>${logoUrl ? `<img src="${esc(logoUrl)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover">` : '<span style="color:#ccc">—</span>'}</td>
+          <td><strong>${esc(b.business_name || '—')}</strong></td>
           <td>${esc(b.business_phone || '—')}</td>
           <td>${esc(b.suburb || '—')}</td>
           <td><span class="badge ${badgeClass}">${status}</span></td>
@@ -403,8 +408,106 @@ async function loadBusinesses(el) {
 window.verifyBiz = async function(id, status) {
   await _supabase.from('business_profiles').update({ verification_status: status }).eq('id', id);
   toast(`Business ${status === 'verified' ? 'approved' : 'rejected'}`);
-  render();
+  loadPage('businesses');
 };
+
+// ── Edit Business Modal ──
+let _editingBiz = null;
+
+async function editBiz(id) {
+  const { data } = await _supabase.from('business_profiles').select('*').eq('id', id).single();
+  _editingBiz = data;
+  _editingBiz.logo_preview = data.logo_url || (data.logo_path ? publicUrl(data.logo_path) : null);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'biz-modal';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Edit Business</h2>
+      <div style="display:flex;gap:16px;margin-bottom:16px;align-items:center">
+        <div id="logo-preview" style="width:80px;height:80px;border-radius:12px;border:2px dashed #ddd;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f9f9f9;flex-shrink:0">
+          ${data.logo_preview ? `<img src="${esc(data.logo_preview)}" style="width:100%;height:100%;object-fit:cover">` : '<span style="color:#ccc;font-size:11px">No logo</span>'}
+        </div>
+        <div style="flex:1">
+          <label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px">Upload New Logo</label>
+          <input type="file" id="logo-file" accept="image/*" style="font-size:13px">
+        </div>
+      </div>
+      <div class="form-group"><label>Logo URL (or paste a URL)</label><input id="biz-logo-url" value="${esc(data.logo_url || '')}" placeholder="https://..."></div>
+      <div class="form-row">
+        <div class="form-group"><label>Business Name</label><input id="biz-name" value="${esc(data.business_name || '')}"></div>
+        <div class="form-group"><label>Phone</label><input id="biz-phone" value="${esc(data.business_phone || '')}"></div>
+      </div>
+      <div class="form-group"><label>Suburb</label><input id="biz-suburb" value="${esc(data.suburb || '')}"></div>
+      <div class="form-group"><label>Description</label><textarea id="biz-desc" rows="2">${esc(data.description || '')}</textarea></div>
+      <div class="modal-actions">
+        <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeBizModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveBiz()">Save Changes</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Preview uploaded logo
+  document.getElementById('logo-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      document.getElementById('logo-preview').innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+      _editingBiz._logoFile = file;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Update preview when URL changes
+  document.getElementById('biz-logo-url').addEventListener('input', (e) => {
+    if (e.target.value && !_editingBiz._logoFile) {
+      document.getElementById('logo-preview').innerHTML = `<img src="${esc(e.target.value)}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<span style=color:#ccc;font-size:11px>Invalid URL</span>'">`;
+    }
+  });
+}
+
+function closeBizModal() {
+  const m = document.getElementById('biz-modal');
+  if (m) m.remove();
+  _editingBiz = null;
+}
+
+async function saveBiz() {
+  if (!_editingBiz) return;
+  const btn = document.querySelector('#biz-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  try {
+    const id = _editingBiz.id;
+    const name = document.getElementById('biz-name').value.trim();
+    const phone = document.getElementById('biz-phone').value.trim();
+    const suburb = document.getElementById('biz-suburb').value.trim();
+    const desc = document.getElementById('biz-desc').value.trim();
+    let logoUrl = document.getElementById('biz-logo-url').value.trim();
+
+    // If a new file was selected, upload it
+    if (_editingBiz._logoFile) {
+      const ext = _editingBiz._logoFile.name.split('.').pop();
+      const path = `${id}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await _supabase.storage.from('business-media').upload(path, _editingBiz._logoFile);
+      if (uploadErr) { toast('Upload failed: ' + uploadErr.message); btn.disabled = false; btn.textContent = 'Save Changes'; return; }
+      logoUrl = publicUrl(path);
+    }
+
+    const updates = { business_name: name, business_phone: phone, suburb, description: desc, logo_url: logoUrl || null };
+    await _supabase.from('business_profiles').update(updates).eq('id', id);
+    toast('Business updated');
+    closeBizModal();
+    loadPage('businesses');
+  } catch (e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+  }
+}
 
 // ── Jobs ──
 async function loadJobs(el) {
@@ -513,6 +616,10 @@ window.deleteCategory = async function(id, name) {
 };
 
 // ── Helpers ──
+function publicUrl(path) {
+  return `${SUPABASE_URL}/storage/v1/object/public/business-media/${path}`;
+}
+
 function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
