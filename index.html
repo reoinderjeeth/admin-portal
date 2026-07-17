@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Portal — Maintenance Platform</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
@@ -537,14 +537,29 @@ function statusBadge(s) {
 
 // ── Init ──
 (async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  state.session = session;
-  if (state.session) {
-    const role = state.session.user?.user_metadata?.role;
-    if (role !== 'admin') { await supabase.auth.signOut(); state.session = null; }
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    state.session = session;
+    if (state.session) {
+      let role = state.session.user?.user_metadata?.role;
+      if (role !== 'admin') {
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', state.session.user.id).maybeSingle();
+        role = profile?.role;
+      }
+      if (role !== 'admin') { await supabase.auth.signOut(); state.session = null; }
+    }
+    state.route = window.location.hash.slice(1) || (state.session ? 'dashboard' : 'login');
+    render();
+  } catch (e) {
+    document.getElementById('app').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;background:#f0f2f5">
+        <div style="background:#fff;padding:40px;border-radius:12px;max-width:500px;text-align:center">
+          <h2 style="color:#c62828;margin-bottom:12px">Failed to load</h2>
+          <p style="color:#666;font-size:14px;margin-bottom:8px">${e.message || e}</p>
+          <p style="color:#999;font-size:12px">Check browser console (F12) for details.</p>
+        </div>
+      </div>`;
   }
-  state.route = window.location.hash.slice(1) || (state.session ? 'dashboard' : 'login');
-  render();
 })();
 </script>
 </body>
