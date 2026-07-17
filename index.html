@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Portal — Maintenance Platform</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+/* ── Login ── */
+.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+.login-card { background: #fff; border-radius: 16px; padding: 40px; width: 400px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.login-card h1 { font-size: 24px; margin-bottom: 4px; color: #1a1a2e; }
+.login-card p { color: #666; font-size: 14px; margin-bottom: 24px; }
+.login-card input { width: 100%; padding: 14px 16px; border: 1px solid #ddd; border-radius: 10px; font-size: 15px; margin-bottom: 12px; outline: none; transition: border .2s; }
+.login-card input:focus { border-color: #0f3460; }
+.login-card button { width: 100%; padding: 14px; background: #0f3460; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background .2s; }
+.login-card button:hover { background: #1a1a2e; }
+.login-card button:disabled { opacity: .6; cursor: not-allowed; }
+.login-card .error { color: #d32f2f; font-size: 13px; margin-bottom: 12px; text-align: center; }
+.login-card .logo { text-align: center; margin-bottom: 8px; }
+.login-card .logo svg { width: 48px; height: 48px; }
+
+/* ── App layout ── */
+.app { display: flex; min-height: 100vh; }
+.sidebar { width: 250px; background: #1a1a2e; color: #fff; display: flex; flex-direction: column; flex-shrink: 0; }
+.sidebar .brand { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sidebar .brand h2 { font-size: 16px; }
+.sidebar .brand small { color: rgba(255,255,255,.5); font-size: 12px; }
+.sidebar nav { flex: 1; padding: 12px 0; }
+.sidebar nav a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: rgba(255,255,255,.7); text-decoration: none; font-size: 14px; transition: all .15s; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
+.sidebar nav a:hover, .sidebar nav a.active { background: rgba(255,255,255,.1); color: #fff; }
+.sidebar nav a.active { border-right: 3px solid #4fc3f7; }
+.sidebar .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); }
+.sidebar .sidebar-footer button { background: none; border: none; color: rgba(255,255,255,.5); cursor: pointer; font-size: 13px; padding: 4px 0; display: flex; align-items: center; gap: 8px; }
+.sidebar .sidebar-footer button:hover { color: #ef5350; }
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar { background: #fff; padding: 16px 24px; border-bottom: 1px solid #e0e0e0; display: flex; align-items: center; justify-content: space-between; }
+.topbar h1 { font-size: 20px; font-weight: 700; }
+.topbar .user-info { font-size: 13px; color: #666; }
+.content { flex: 1; padding: 24px; overflow-y: auto; }
+
+/* ── Cards ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: #fff; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.stat-card .stat-icon { font-size: 28px; margin-bottom: 8px; }
+.stat-card .stat-value { font-size: 28px; font-weight: 800; }
+.stat-card .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
+
+/* ── Tables ── */
+.card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 20px; }
+.card h2 { font-size: 16px; margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+th { font-weight: 600; color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+td { color: #333; }
+tr:hover td { background: #f8f9fa; }
+
+/* ── Badges ── */
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: capitalize; }
+.badge-green { background: #e8f5e9; color: #2e7d32; }
+.badge-blue { background: #e3f2fd; color: #1565c0; }
+.badge-orange { background: #fff3e0; color: #e65100; }
+.badge-red { background: #ffebee; color: #c62828; }
+.badge-gray { background: #f5f5f5; color: #616161; }
+.badge-purple { background: #f3e5f5; color: #7b1fa2; }
+.badge-teal { background: #e0f2f1; color: #00695c; }
+
+/* ── Buttons ── */
+.btn { padding: 8px 16px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.btn:hover { opacity: .8; }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-success { background: #e8f5e9; color: #2e7d32; }
+.btn-danger { background: #ffebee; color: #c62828; }
+.btn-primary { background: #0f3460; color: #fff; padding: 10px 20px; }
+
+/* ── Verification progress ── */
+.progress-item { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.progress-item .label { width: 100px; font-size: 13px; color: #555; }
+.progress-item .bar { flex: 1; height: 16px; background: #e0e0e0; border-radius: 8px; overflow: hidden; }
+.progress-item .bar-fill { height: 100%; border-radius: 8px; transition: width .3s; }
+.progress-item .count { width: 30px; text-align: right; font-weight: 700; font-size: 13px; }
+
+/* ── Form ── */
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px; }
+.form-group input, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+.form-group input:focus, .form-group textarea:focus { border-color: #0f3460; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; }
+
+/* ── Loading ── */
+.loading { display: flex; align-items: center; justify-content: center; padding: 60px; color: #888; }
+.spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #0f3460; border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty { text-align: center; padding: 40px; color: #999; font-size: 14px; }
+
+/* ── Modal ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: #fff; border-radius: 16px; padding: 32px; width: 500px; max-width: 90vw; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+.modal h2 { font-size: 18px; margin-bottom: 16px; }
+.modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+
+/* ── Toast ── */
+.toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: #fff; padding: 12px 24px; border-radius: 10px; font-size: 14px; box-shadow: 0 4px 20px rgba(0,0,0,.2); z-index: 200; animation: slideIn .3s ease; }
+@keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ── Row actions ── */
+.row-actions { display: flex; gap: 6px; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .sidebar { width: 60px; }
+  .sidebar .brand h2, .sidebar .brand small, .sidebar nav a span, .sidebar .sidebar-footer button span { display: none; }
+  .sidebar nav a { justify-content: center; padding: 16px; }
+  .sidebar .sidebar-footer button { justify-content: center; }
+  .content { padding: 16px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const SUPABASE_URL = 'https://pbeqwuzjeodzucgstnjg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBiZXF3dXpqZW9kenVjZ3N0bmpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NjQ0MjYsImV4cCI6MjA5NzQ0MDQyNn0.AJJJRdSrEIS3vk5c2Fteecq4LGzbjFNLnm_6pbrxfeE';
+
+const { createClient } = supabase;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let state = { session: null, route: 'dashboard' };
+
+// ── Routing ──
+function navigate(route) {
+  state.route = route;
+  window.location.hash = route;
+  render();
+}
+
+window.addEventListener('hashchange', () => {
+  state.route = window.location.hash.slice(1) || 'dashboard';
+  render();
+});
+
+// ── Toast ──
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ── Auth ──
+async function login(email, password) {
+  const btn = document.querySelector('.login-card button');
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) { document.querySelector('.login-card .error').textContent = error.message; return; }
+  let role = data.user?.user_metadata?.role;
+  if (role !== 'admin') {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
+    role = profile?.role;
+  }
+  if (role !== 'admin') {
+    await supabase.auth.signOut();
+    document.querySelector('.login-card .error').textContent = 'Access denied. Admin account required.';
+    return;
+  }
+  state.session = data.session;
+  navigate('dashboard');
+}
+
+async function logout() {
+  await supabase.auth.signOut();
+  state.session = null;
+  navigate('login');
+}
+
+// ── API helpers ──
+async function fetchStats() {
+  const [profiles, businesses, jobs, quotes] = await Promise.all([
+    supabase.from('profiles').select('id, role'),
+    supabase.from('business_profiles').select('id, verification_status'),
+    supabase.from('jobs').select('status'),
+    supabase.from('quotes').select('status, total'),
+  ]);
+  const p = profiles.data || [], b = businesses.data || [], j = jobs.data || [], q = quotes.data || [];
+  let customers = 0, bizOwners = 0, techs = 0;
+  p.forEach(x => { if (x.role === 'customer') customers++; else if (x.role === 'business') bizOwners++; else if (x.role === 'technician') techs++; });
+  const pendingVerifications = b.filter(x => x.verification_status === 'pending').length;
+  const verifiedBusinesses = b.filter(x => x.verification_status === 'verified').length;
+  const activeJobs = j.filter(x => ['accepted','on_the_way','arrived','in_progress'].includes(x.status)).length;
+  const completedJobs = j.filter(x => x.status === 'completed').length;
+  let revenue = 0;
+  q.forEach(x => { if (x.status === 'accepted') revenue += (x.total || 0); });
+  return { customers, bizOwners, techs, totalUsers: p.length, totalBusinesses: b.length, pendingVerifications, verifiedBusinesses, activeJobs, completedJobs, totalJobs: j.length, totalQuotes: q.length, revenue };
+}
+
+async function fetchUsers() {
+  const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+  return data || [];
+}
+
+async function fetchBusinesses() {
+  const { data } = await supabase.from('business_profiles').select('*').order('created_at', { ascending: false });
+  return data || [];
+}
+
+async function fetchJobs() {
+  const { data } = await supabase.from('jobs').select('*, profiles!inner(full_name)').order('created_at', { ascending: false }).limit(100);
+  return data || [];
+}
+
+async function fetchQuotes() {
+  const { data } = await supabase.from('quotes').select('*, profiles!quotes_customer_id_fkey(full_name)').order('created_at', { ascending: false }).limit(100);
+  return data || [];
+}
+
+async function fetchInvoices() {
+  const { data } = await supabase.from('invoices').select('*, profiles!inner(full_name)').order('created_at', { ascending: false }).limit(100);
+  return data || [];
+}
+
+async function fetchCategories() {
+  const { data } = await supabase.from('service_categories').select('*').order('display_name');
+  return data || [];
+}
+
+// ── Render ──
+function render() {
+  const app = document.getElementById('app');
+  if (!state.session) {
+    app.innerHTML = renderLogin();
+    return;
+  }
+  if (state.route === 'login') { state.route = 'dashboard'; window.location.hash = 'dashboard'; }
+  app.innerHTML = renderShell();
+  document.querySelectorAll('.sidebar nav a').forEach(a => {
+    a.classList.toggle('active', a.dataset.route === state.route);
+  });
+  loadPage(state.route);
+}
+
+// ── Login view ──
+function renderLogin() {
+  return `
+    <div class="login-page">
+      <div class="login-card">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0f3460" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <h1>Admin Portal</h1>
+        <p>Maintenance Platform — Sign in with your admin account</p>
+        <div class="error"></div>
+        <input type="email" id="email" placeholder="Email address" autocomplete="email">
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+        <button onclick="login(document.getElementById('email').value, document.getElementById('password').value)">Sign In</button>
+      </div>
+    </div>
+  `;
+}
+
+// ── Shell ──
+function renderShell() {
+  const user = state.session?.user;
+  const routes = [
+    { route: 'dashboard', icon: '📊', label: 'Dashboard' },
+    { route: 'users', icon: '👥', label: 'Users' },
+    { route: 'businesses', icon: '🏢', label: 'Businesses' },
+    { route: 'jobs', icon: '🔧', label: 'Jobs' },
+    { route: 'quotes', icon: '📄', label: 'Quotes' },
+    { route: 'invoices', icon: '💰', label: 'Invoices' },
+    { route: 'categories', icon: '📂', label: 'Categories' },
+  ];
+  return `
+    <div class="app">
+      <div class="sidebar">
+        <div class="brand"><h2>⚙ Admin</h2><small>Maintenance Platform</small></div>
+        <nav>
+          ${routes.map(r => `<a data-route="${r.route}" href="#${r.route}"><span>${r.icon}</span><span>${r.label}</span></a>`).join('')}
+        </nav>
+        <div class="sidebar-footer">
+          <button onclick="logout()"><span>🚪</span><span>Sign Out — ${user?.email || ''}</span></button>
+        </div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <h1 id="page-title">Dashboard</h1>
+          <div class="user-info">${user?.email || ''}</div>
+        </div>
+        <div class="content" id="page-content"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Page loader ──
+function loadPage(route) {
+  const titles = { dashboard: 'Dashboard', users: 'Users', businesses: 'Businesses', jobs: 'Jobs', quotes: 'Quotes', invoices: 'Invoices', categories: 'Categories' };
+  document.getElementById('page-title').textContent = titles[route] || 'Dashboard';
+  const content = document.getElementById('page-content');
+  content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  switch (route) {
+    case 'dashboard': loadDashboard(content); break;
+    case 'users': loadUsers(content); break;
+    case 'businesses': loadBusinesses(content); break;
+    case 'jobs': loadJobs(content); break;
+    case 'quotes': loadQuotes(content); break;
+    case 'invoices': loadInvoices(content); break;
+    case 'categories': loadCategories(content); break;
+    default: content.innerHTML = '<div class="empty">Page not found</div>';
+  }
+}
+
+// ── Dashboard ──
+async function loadDashboard(el) {
+  try {
+    const stats = await fetchStats();
+    el.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" style="color:#1565c0">${stats.totalUsers}</div><div class="stat-label">Total Users</div></div>
+        <div class="stat-card"><div class="stat-icon">🧑</div><div class="stat-value" style="color:#2e7d32">${stats.customers}</div><div class="stat-label">Customers</div></div>
+        <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-value" style="color:#00695c">${stats.totalBusinesses}</div><div class="stat-label">Businesses</div></div>
+        <div class="stat-card"><div class="stat-icon">🔧</div><div class="stat-value" style="color:#e65100">${stats.techs}</div><div class="stat-label">Technicians</div></div>
+        <div class="stat-card"><div class="stat-icon">⚡</div><div class="stat-value" style="color:#1565c0">${stats.activeJobs}</div><div class="stat-label">Active Jobs</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" style="color:#2e7d32">${stats.completedJobs}</div><div class="stat-label">Completed Jobs</div></div>
+        <div class="stat-card"><div class="stat-icon">📄</div><div class="stat-value" style="color:#7b1fa2">${stats.totalQuotes}</div><div class="stat-label">Quotes</div></div>
+        <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" style="color:#e65100">R${stats.revenue.toFixed(0)}</div><div class="stat-label">Revenue</div></div>
+      </div>
+      <div class="card">
+        <h2>Business Verification Status</h2>
+        <div class="progress-item">
+          <span class="label">Verified</span>
+          <div class="bar"><div class="bar-fill" style="width:${stats.totalBusinesses ? (stats.verifiedBusinesses/stats.totalBusinesses*100) : 0}%;background:#2e7d32"></div></div>
+          <span class="count" style="color:#2e7d32">${stats.verifiedBusinesses}</span>
+        </div>
+        <div class="progress-item">
+          <span class="label">Pending</span>
+          <div class="bar"><div class="bar-fill" style="width:${stats.totalBusinesses ? (stats.pendingVerifications/stats.totalBusinesses*100) : 0}%;background:#e65100"></div></div>
+          <span class="count" style="color:#e65100">${stats.pendingVerifications}</span>
+        </div>
+        <div class="progress-item">
+          <span class="label">Unverified</span>
+          <div class="bar"><div class="bar-fill" style="width:${stats.totalBusinesses ? ((stats.totalBusinesses-stats.verifiedBusinesses-stats.pendingVerifications)/stats.totalBusinesses*100) : 0}%;background:#9e9e9e"></div></div>
+          <span class="count" style="color:#9e9e9e">${stats.totalBusinesses - stats.verifiedBusinesses - stats.pendingVerifications}</span>
+        </div>
+      </div>
+    `;
+  } catch (e) { el.innerHTML = `<div class="empty">Error loading stats: ${e.message}</div>`; }
+}
+
+// ── Users ──
+async function loadUsers(el) {
+  try {
+    const users = await fetchUsers();
+    if (!users.length) { el.innerHTML = '<div class="empty">No users found</div>'; return; }
+    el.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Created</th></tr></thead>
+      <tbody>${users.map(u => `<tr>
+        <td>${esc(u.full_name || '—')}</td>
+        <td>${esc(u.email || '—')}</td>
+        <td>${esc(u.phone || '—')}</td>
+        <td><span class="badge badge-${u.role === 'admin' ? 'purple' : u.role === 'business' ? 'blue' : u.role === 'technician' ? 'orange' : 'green'}">${esc(u.role || '—')}</span></td>
+        <td>${fmtDate(u.created_at)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+}
+
+// ── Businesses ──
+async function loadBusinesses(el) {
+  try {
+    const bizs = await fetchBusinesses();
+    if (!bizs.length) { el.innerHTML = '<div class="empty">No businesses found</div>'; return; }
+    el.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Name</th><th>Phone</th><th>Suburb</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody>${bizs.map(b => {
+        const status = b.verification_status || 'unverified';
+        const badgeClass = status === 'verified' ? 'badge-green' : status === 'pending' ? 'badge-orange' : 'badge-gray';
+        const actions = status === 'pending' ? `
+          <div class="row-actions">
+            <button class="btn btn-sm btn-success" onclick="verifyBiz('${b.id}','verified')">✓ Approve</button>
+            <button class="btn btn-sm btn-danger" onclick="verifyBiz('${b.id}','rejected')">✗ Reject</button>
+          </div>` : '';
+        return `<tr>
+          <td>${esc(b.business_name || '—')}</td>
+          <td>${esc(b.business_phone || '—')}</td>
+          <td>${esc(b.suburb || '—')}</td>
+          <td><span class="badge ${badgeClass}">${status}</span></td>
+          <td>${fmtDate(b.created_at)}</td>
+          <td>${actions}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+}
+
+window.verifyBiz = async function(id, status) {
+  await supabase.from('business_profiles').update({ verification_status: status }).eq('id', id);
+  toast(`Business ${status === 'verified' ? 'approved' : 'rejected'}`);
+  render();
+};
+
+// ── Jobs ──
+async function loadJobs(el) {
+  try {
+    const jobs = await fetchJobs();
+    if (!jobs.length) { el.innerHTML = '<div class="empty">No jobs found</div>'; return; }
+    el.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Ref #</th><th>Description</th><th>Customer</th><th>Status</th><th>Created</th></tr></thead>
+      <tbody>${jobs.map(j => `<tr>
+        <td>${esc(j.reference_number || '—')}</td>
+        <td>${esc((j.description || '').substring(0, 60))}</td>
+        <td>${esc(j.profiles?.full_name || '—')}</td>
+        <td><span class="badge ${statusBadge(j.status)}">${esc(j.status)}</span></td>
+        <td>${fmtDate(j.created_at)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+}
+
+// ── Quotes ──
+async function loadQuotes(el) {
+  try {
+    const quotes = await fetchQuotes();
+    if (!quotes.length) { el.innerHTML = '<div class="empty">No quotes found</div>'; return; }
+    el.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Quote #</th><th>Title</th><th>Customer</th><th>Total</th><th>Status</th><th>Created</th></tr></thead>
+      <tbody>${quotes.map(q => `<tr>
+        <td>${esc(q.quote_number || '—')}</td>
+        <td>${esc(q.title || '—')}</td>
+        <td>${esc(q.profiles?.full_name || '—')}</td>
+        <td><strong>R${(q.total || 0).toFixed(2)}</strong></td>
+        <td><span class="badge ${statusBadge(q.status)}">${esc(q.status)}</span></td>
+        <td>${fmtDate(q.created_at)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+}
+
+// ── Invoices ──
+async function loadInvoices(el) {
+  try {
+    const invoices = await fetchInvoices();
+    if (!invoices.length) { el.innerHTML = '<div class="empty">No invoices found</div>'; return; }
+    el.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Invoice #</th><th>Customer</th><th>Total</th><th>Status</th><th>Paid At</th><th>Created</th></tr></thead>
+      <tbody>${invoices.map(inv => `<tr>
+        <td>${esc(inv.invoice_number || '—')}</td>
+        <td>${esc(inv.profiles?.full_name || '—')}</td>
+        <td><strong>R${(inv.total || 0).toFixed(2)}</strong></td>
+        <td><span class="badge ${inv.status === 'paid' ? 'badge-green' : inv.status === 'issued' ? 'badge-blue' : inv.status === 'cancelled' ? 'badge-red' : 'badge-gray'}">${esc(inv.status)}</span></td>
+        <td>${inv.paid_at ? fmtDate(inv.paid_at) : '—'}</td>
+        <td>${fmtDate(inv.created_at)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+}
+
+// ── Categories ──
+async function loadCategories(el) {
+  try {
+    const cats = await fetchCategories();
+    el.innerHTML = `
+      <div class="card">
+        <h2>Add New Category</h2>
+        <div class="form-row">
+          <div class="form-group"><label>Slug (e.g. plumbing)</label><input id="cat-name" placeholder="plumbing"></div>
+          <div class="form-group"><label>Display Name</label><input id="cat-display" placeholder="Plumbing"></div>
+        </div>
+        <div class="form-group"><label>Description</label><textarea id="cat-desc" rows="2"></textarea></div>
+        <button class="btn btn-primary" onclick="addCategory()">+ Add Category</button>
+      </div>
+      <div class="card">
+        <h2>Service Categories (${cats.length})</h2>
+        ${cats.length ? `<table>
+          <thead><tr><th>Name</th><th>Display Name</th><th>Description</th><th>Actions</th></tr></thead>
+          <tbody>${cats.map(c => `<tr>
+            <td>${esc(c.name)}</td>
+            <td><strong>${esc(c.display_name)}</strong></td>
+            <td>${esc(c.description || '')}</td>
+            <td><button class="btn btn-sm btn-danger" onclick="deleteCategory('${c.id}','${esc(c.display_name)}')">Delete</button></td>
+          </tr>`).join('')}</tbody>
+        </table>` : '<div class="empty">No categories yet</div>'}
+      </div>
+    `;
+  } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
+}
+
+window.addCategory = async function() {
+  const name = document.getElementById('cat-name').value.trim();
+  const display = document.getElementById('cat-display').value.trim();
+  const desc = document.getElementById('cat-desc').value.trim();
+  if (!name || !display) { toast('Slug and display name are required'); return; }
+  await supabase.from('service_categories').insert({ name, display_name: display, description: desc });
+  document.getElementById('cat-name').value = '';
+  document.getElementById('cat-display').value = '';
+  document.getElementById('cat-desc').value = '';
+  toast('Category added');
+  render();
+};
+
+window.deleteCategory = async function(id, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  await supabase.from('service_categories').delete().eq('id', id);
+  toast('Category deleted');
+  render();
+};
+
+// ── Helpers ──
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  catch(_) { return iso; }
+}
+
+function statusBadge(s) {
+  const map = {
+    pending: 'badge-orange', accepted: 'badge-blue', on_the_way: 'badge-blue',
+    arrived: 'badge-teal', in_progress: 'badge-purple', completed: 'badge-green',
+    cancelled: 'badge-red', draft: 'badge-gray', sent: 'badge-blue',
+    paid: 'badge-green', issued: 'badge-blue',
+  };
+  return map[s] || 'badge-gray';
+}
+
+// ── Init ──
+(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  state.session = session;
+  if (state.session) {
+    const role = state.session.user?.user_metadata?.role;
+    if (role !== 'admin') { await supabase.auth.signOut(); state.session = null; }
+  }
+  state.route = window.location.hash.slice(1) || (state.session ? 'dashboard' : 'login');
+  render();
+})();
+</script>
+</body>
+</html>
