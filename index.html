@@ -252,10 +252,10 @@ function renderLogin() {
     <div class="login-page">
       <div class="login-card">
         <div class="logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#0f3460" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          <img src="https://pbeqwuzjeodzucgstnjg.supabase.co/storage/v1/object/public/business-media/ChatGPT%20Image%20Jul%2017,%202026,%2010_52_38%20AM.png" alt="FixerBud" style="width:80px;height:80px;border-radius:12px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,.1)">
         </div>
-        <h1>Admin Portal</h1>
-        <p>Maintenance Platform — Sign in with your admin account</p>
+        <h1>FixerBud Admin</h1>
+        <p>Sign in with your admin account</p>
         <div class="error"></div>
         <input type="email" id="email" placeholder="Email address" autocomplete="email">
         <input type="password" id="password" placeholder="Password" autocomplete="current-password">
@@ -280,7 +280,10 @@ function renderShell() {
   return `
     <div class="app">
       <div class="sidebar">
-        <div class="brand"><h2>⚙ Admin</h2><small>Maintenance Platform</small></div>
+        <div class="brand" style="display:flex;align-items:center;gap:10px">
+          <img src="https://pbeqwuzjeodzucgstnjg.supabase.co/storage/v1/object/public/business-media/ChatGPT%20Image%20Jul%2017,%202026,%2010_52_38%20AM.png" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0">
+          <div><h2>FixerBud</h2><small>Admin Panel</small></div>
+        </div>
         <nav>
           ${routes.map(r => `<a data-route="${r.route}" href="#${r.route}"><span>${r.icon}</span><span>${r.label}</span></a>`).join('')}
         </nav>
