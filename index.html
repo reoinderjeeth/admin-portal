@@ -91,7 +91,7 @@ body {
 }
 .sidebar .brand h2 { font-size: 17px; color: #fff; line-height: 1.2; }
 .sidebar .brand small { color: #f97316; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-.sidebar nav { flex: 1; padding: 16px 10px; }
+.sidebar nav { flex: 1; padding: 16px 10px; overflow-y: auto; }
 .sidebar nav a {
   display: flex; align-items: center; gap: 12px;
   padding: 11px 14px; margin-bottom: 2px;
@@ -292,6 +292,77 @@ tr:hover td { background: #f8fafc; }
 .add-category:focus-within { border-color: #f97316; }
 .add-category h2 { color: #0a1929; font-size: 15px; margin-bottom: 16px; }
 
+/* ── Toolbar / search ── */
+.toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.toolbar input, .toolbar select {
+  padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 10px;
+  font-size: 13px; font-family: inherit; background: #fff; color: #0a1929;
+}
+.toolbar input:focus, .toolbar select:focus { outline: none; border-color: #f97316; }
+.toolbar input { flex: 1; min-width: 220px; }
+.toolbar .count-note { font-size: 12px; color: #94a3b8; font-weight: 600; }
+
+/* ── Media gallery ── */
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.media-item {
+  background: #fff; border-radius: 12px; overflow: hidden; cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06); transition: transform .15s, box-shadow .15s;
+  border: 2px solid transparent;
+}
+.media-item:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.1); border-color: #f97316; }
+.media-item .thumb {
+  height: 130px; background: #f1f5f9 center/cover no-repeat;
+  display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 28px;
+}
+.media-item .cap { padding: 10px 12px; }
+.media-item .cap .t { font-size: 12px; font-weight: 700; color: #0a1929; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-item .cap .s { font-size: 11px; color: #94a3b8; margin-top: 3px; }
+.media-section { margin-bottom: 28px; }
+.media-section > h2 { margin-bottom: 14px; }
+
+/* ── Chat transcript ── */
+.chat-thread { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.05); margin-bottom: 16px; }
+.chat-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+.chat-head .who { font-size: 14px; font-weight: 700; color: #0a1929; }
+.chat-head .sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+.chat-msg { display: flex; margin-bottom: 10px; }
+.chat-msg.mine { justify-content: flex-end; }
+.chat-bubble {
+  max-width: 78%; padding: 10px 14px; border-radius: 14px;
+  background: #f1f5f9; color: #0f172a; font-size: 13px; line-height: 1.5; word-break: break-word;
+}
+.chat-msg.mine .chat-bubble { background: #0a1929; color: #fff; border-bottom-right-radius: 4px; }
+.chat-msg:not(.mine) .chat-bubble { border-bottom-left-radius: 4px; }
+.chat-meta { font-size: 10px; color: #94a3b8; margin-top: 4px; display: flex; gap: 8px; align-items: center; }
+.chat-msg.mine .chat-meta { justify-content: flex-end; }
+
+/* ── Key/value detail grid ── */
+.kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 16px; font-size: 13px; }
+.kv dt { color: #94a3b8; font-weight: 600; }
+.kv dd { margin: 0; color: #0f172a; font-weight: 500; word-break: break-word; }
+.modal.wide { max-width: 860px; width: 94vw; }
+.modal-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0; }
+.modal-tabs button {
+  padding: 9px 14px; border: none; background: none; font-family: inherit; font-size: 13px;
+  font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+}
+.modal-tabs button.active { color: #f97316; border-bottom-color: #f97316; }
+.pane { max-height: 55vh; overflow-y: auto; padding-right: 4px; }
+.sub-head { font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 10px; }
+.sub-head:first-child { margin-top: 0; }
+
+/* ── Lightbox ── */
+.lightbox {
+  position: fixed; inset: 0; background: rgba(10,25,41,.92); z-index: 3000;
+  display: flex; align-items: center; justify-content: center; padding: 32px; cursor: zoom-out;
+}
+.lightbox img { max-width: 100%; max-height: 90vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.lightbox .lb-cap { position: absolute; bottom: 16px; left: 0; right: 0; text-align: center; color: #fff; font-size: 13px; }
+.thumbs { display: flex; gap: 6px; flex-wrap: wrap; }
+.thumbs img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid #e2e8f0; }
+.thumbs img:hover { border-color: #f97316; }
+.stars { color: #f59e0b; letter-spacing: 1px; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .sidebar { width: 64px; }
@@ -370,13 +441,17 @@ async function logout() {
 
 // ── API helpers ──
 async function fetchStats() {
-  const [profiles, businesses, jobs, quotes] = await Promise.all([
+  const [profiles, businesses, jobs, quotes, messages, calls, reviews] = await Promise.all([
     _supabase.from('profiles').select('id, role'),
     _supabase.from('business_profiles').select('id, verification_status'),
     _supabase.from('jobs').select('status'),
     _supabase.from('quotes').select('status, total'),
+    _supabase.from('messages').select('id'),
+    _supabase.from('calls').select('id, status'),
+    _supabase.from('reviews').select('rating'),
   ]);
   const p = profiles.data || [], b = businesses.data || [], j = jobs.data || [], q = quotes.data || [];
+  const m = messages.data || [], c = calls.data || [], rv = reviews.data || [];
   let customers = 0, bizOwners = 0, techs = 0;
   p.forEach(x => { if (x.role === 'customer') customers++; else if (x.role === 'business') bizOwners++; else if (x.role === 'technician') techs++; });
   const pendingVerifications = b.filter(x => x.verification_status === 'pending').length;
@@ -385,7 +460,8 @@ async function fetchStats() {
   const completedJobs = j.filter(x => x.status === 'completed').length;
   let revenue = 0;
   q.forEach(x => { if (x.status === 'accepted') revenue += (x.total || 0); });
-  return { customers, bizOwners, techs, totalUsers: p.length, totalBusinesses: b.length, pendingVerifications, verifiedBusinesses, activeJobs, completedJobs, totalJobs: j.length, totalQuotes: q.length, revenue };
+  const avgRating = rv.length ? rv.reduce((s, r) => s + (r.rating || 0), 0) / rv.length : 0;
+  return { customers, bizOwners, techs, totalUsers: p.length, totalBusinesses: b.length, pendingVerifications, verifiedBusinesses, activeJobs, completedJobs, totalJobs: j.length, totalQuotes: q.length, revenue, totalMessages: m.length, totalCalls: c.length, missedCalls: c.filter(x => x.status === 'missed').length, avgRating, totalReviews: rv.length };
 }
 
 async function fetchUsers() {
@@ -416,6 +492,50 @@ async function fetchInvoices() {
 async function fetchCategories() {
   const { data } = await _supabase.from('service_categories').select('*').order('display_name');
   return data || [];
+}
+
+// Requires migration 037 for admin SELECT policies on these tables
+async function fetchMessages() {
+  const { data, error } = await _supabase
+    .from('messages').select('*').order('created_at', { ascending: false }).limit(500);
+  if (error) throw error;
+  return data || [];
+}
+
+async function fetchCalls() {
+  const { data, error } = await _supabase
+    .from('calls').select('*').order('created_at', { ascending: false }).limit(300);
+  if (error) throw error;
+  return data || [];
+}
+
+async function fetchReviews() {
+  const { data } = await _supabase
+    .from('reviews').select('*').order('created_at', { ascending: false }).limit(300);
+  return data || [];
+}
+
+async function fetchNotifications() {
+  const { data, error } = await _supabase
+    .from('notifications').select('*').order('created_at', { ascending: false }).limit(300);
+  if (error) throw error;
+  return data || [];
+}
+
+// Map of profile id -> display name, so we can label senders/callers
+// without relying on fragile embedded-resource FK hints.
+async function fetchNameMap() {
+  const { data } = await _supabase.from('profiles').select('id, full_name, role');
+  const map = {};
+  (data || []).forEach(p => { map[p.id] = p.full_name || 'Unknown'; });
+  return map;
+}
+
+async function fetchJobNameMap() {
+  const { data } = await _supabase.from('jobs').select('id, reference_number, description');
+  const map = {};
+  (data || []).forEach(j => { map[j.id] = j.reference_number || j.id.slice(0, 8); });
+  return map;
 }
 
 // ── Render ──
@@ -460,8 +580,13 @@ function renderShell() {
     { route: 'users', icon: '👥', label: 'Users' },
     { route: 'businesses', icon: '🏢', label: 'Businesses' },
     { route: 'jobs', icon: '🔧', label: 'Jobs' },
+    { route: 'messages', icon: '💬', label: 'Messages' },
+    { route: 'media', icon: '🖼️', label: 'Images' },
     { route: 'quotes', icon: '📄', label: 'Quotes' },
     { route: 'invoices', icon: '💰', label: 'Invoices' },
+    { route: 'calls', icon: '📞', label: 'Calls' },
+    { route: 'reviews', icon: '⭐', label: 'Reviews' },
+    { route: 'notifications', icon: '🔔', label: 'Notifications' },
     { route: 'categories', icon: '📂', label: 'Categories' },
   ];
   return `
@@ -491,7 +616,7 @@ function renderShell() {
 
 // ── Page loader ──
 function loadPage(route) {
-  const titles = { dashboard: 'Dashboard', users: 'Users', businesses: 'Businesses', jobs: 'Jobs', quotes: 'Quotes', invoices: 'Invoices', categories: 'Categories' };
+  const titles = { dashboard: 'Dashboard', users: 'Users', businesses: 'Businesses', jobs: 'Jobs', messages: 'Messages', media: 'Images', quotes: 'Quotes', invoices: 'Invoices', calls: 'Calls', reviews: 'Reviews', notifications: 'Notifications', categories: 'Categories' };
   document.getElementById('page-title').textContent = titles[route] || 'Dashboard';
   const content = document.getElementById('page-content');
   content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -500,8 +625,13 @@ function loadPage(route) {
     case 'users': loadUsers(content); break;
     case 'businesses': loadBusinesses(content); break;
     case 'jobs': loadJobs(content); break;
+    case 'messages': loadMessages(content); break;
+    case 'media': loadMedia(content); break;
     case 'quotes': loadQuotes(content); break;
     case 'invoices': loadInvoices(content); break;
+    case 'calls': loadCalls(content); break;
+    case 'reviews': loadReviews(content); break;
+    case 'notifications': loadNotifications(content); break;
     case 'categories': loadCategories(content); break;
     default: content.innerHTML = '<div class="empty">Page not found</div>';
   }
@@ -520,6 +650,9 @@ async function loadDashboard(el) {
         <div class="stat-card"><div class="stat-icon">⚡</div><div class="stat-value" style="color:#1565c0">${stats.activeJobs}</div><div class="stat-label">Active Jobs</div></div>
         <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" style="color:#2e7d32">${stats.completedJobs}</div><div class="stat-label">Completed Jobs</div></div>
         <div class="stat-card"><div class="stat-icon">📄</div><div class="stat-value" style="color:#7b1fa2">${stats.totalQuotes}</div><div class="stat-label">Quotes</div></div>
+        <div class="stat-card"><div class="stat-icon">💬</div><div class="stat-value" style="color:#0a1929">${stats.totalMessages}</div><div class="stat-label">Messages</div></div>
+        <div class="stat-card"><div class="stat-icon">📞</div><div class="stat-value" style="color:#00695c">${stats.totalCalls}</div><div class="stat-label">Calls (${stats.missedCalls} missed)</div></div>
+        <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value" style="color:#f59e0b">${stats.avgRating.toFixed(1)}</div><div class="stat-label">Avg Rating (${stats.totalReviews})</div></div>
         <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" style="color:#e65100">R${stats.revenue.toFixed(0)}</div><div class="stat-label">Revenue</div></div>
       </div>
       <div class="card">
@@ -568,11 +701,15 @@ async function loadBusinesses(el) {
     const bizs = await fetchBusinesses();
     if (!bizs.length) { el.innerHTML = '<div class="empty">No businesses found</div>'; return; }
     el.innerHTML = `<div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Logo</th><th>Name</th><th>Phone</th><th>Suburb</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Logo</th><th>Name</th><th>Phone</th><th>Suburb</th><th>Media</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>${bizs.map(b => {
         const status = b.verification_status || 'unverified';
         const badgeClass = status === 'verified' ? 'badge-green' : status === 'pending' ? 'badge-orange' : 'badge-gray';
         const logoUrl = b.logo_url || (b.logo_path ? publicUrl(b.logo_path) : null);
+        const mediaCount = (b.gallery_urls || []).length + (b.certificate_urls || []).length;
+        const media = mediaCount
+          ? `<a href="#media" style="color:#f97316;font-weight:700;font-size:12px">🖼️ ${mediaCount} image${mediaCount === 1 ? '' : 's'}</a>`
+          : '<span style="color:#cbd5e1;font-size:12px">—</span>';
         const actions = `
           <div class="row-actions">
             <button class="btn btn-sm btn-primary" onclick="editBiz('${b.id}')">✎ Edit</button>
@@ -586,6 +723,7 @@ async function loadBusinesses(el) {
           <td><strong>${esc(b.business_name || '—')}</strong></td>
           <td>${esc(b.business_phone || '—')}</td>
           <td>${esc(b.suburb || '—')}</td>
+          <td>${media}</td>
           <td><span class="badge ${badgeClass}">${status}</span></td>
           <td>${fmtDate(b.created_at)}</td>
           <td>${actions}</td>
@@ -705,17 +843,147 @@ async function loadJobs(el) {
     const jobs = await fetchJobs();
     if (!jobs.length) { el.innerHTML = '<div class="empty">No jobs found</div>'; return; }
     el.innerHTML = `<div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Ref #</th><th>Description</th><th>Customer</th><th>Status</th><th>Created</th></tr></thead>
+      <thead><tr><th>Ref #</th><th>Description</th><th>Customer</th><th>Status</th><th>Photos</th><th>Created</th><th></th></tr></thead>
       <tbody>${jobs.map(j => `<tr>
         <td><strong>${esc(j.reference_number || '—')}</strong></td>
         <td>${esc((j.description || '').substring(0, 60))}</td>
         <td>${esc(j.profiles?.full_name || '—')}</td>
         <td><span class="badge ${statusBadge(j.status)}">${esc(j.status)}</span></td>
+        <td>${(j.images || []).length ? `<span class="badge badge-teal">${j.images.length}</span>` : '<span style="color:#cbd5e1">—</span>'}</td>
         <td>${fmtDate(j.created_at)}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="viewJob('${j.id}')">View</button></td>
       </tr>`).join('')}</tbody>
     </table></div></div>`;
   } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
+
+// ── Job detail: everything about one job in one place ──
+window.viewJob = async function(jobId) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'job-modal';
+  overlay.innerHTML = `<div class="modal wide"><div class="loading"><div class="spinner"></div></div></div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeJobModal(); });
+
+  try {
+    const [jobRes, names] = await Promise.all([
+      _supabase.from('jobs').select('*').eq('id', jobId).single(),
+      fetchNameMap(),
+    ]);
+    const job = jobRes.data;
+    if (!job) { overlay.querySelector('.modal').innerHTML = '<h2>Job not found</h2>'; return; }
+
+    const [msgs, quotes, invoices, calls] = await Promise.all([
+      _supabase.from('messages').select('*').eq('job_id', jobId).order('created_at'),
+      _supabase.from('quotes').select('*').eq('job_id', jobId).order('created_at'),
+      _supabase.from('invoices').select('*').eq('job_id', jobId).order('created_at'),
+      _supabase.from('calls').select('*').eq('job_id', jobId).order('created_at'),
+    ]);
+
+    const M = msgs.data || [], Q = quotes.data || [], I = invoices.data || [], C = calls.data || [];
+    const thumbs = (job.images || []).map(u =>
+      `<img src="${esc(u)}" onclick="openLightbox('${jsq(u)}', '${jsq(job.reference_number || '')}')" onerror="this.style.visibility='hidden'">`).join('');
+
+    overlay.querySelector('.modal').innerHTML = `
+      <h2>${esc(job.reference_number || 'Job')} — ${esc((job.description || '').substring(0, 60))}</h2>
+      <div class="modal-tabs">
+        <button class="active" onclick="jobTab(this,'pane-overview')">Overview</button>
+        <button onclick="jobTab(this,'pane-messages')">Messages (${M.length})</button>
+        <button onclick="jobTab(this,'pane-quotes')">Quotes (${Q.length})</button>
+        <button onclick="jobTab(this,'pane-invoices')">Invoices (${I.length})</button>
+        <button onclick="jobTab(this,'pane-calls')">Calls (${C.length})</button>
+        <button onclick="jobTab(this,'pane-media')">Images (${(job.images || []).length})</button>
+      </div>
+
+      <div class="pane" id="pane-overview">
+        <div class="sub-head">Job</div>
+        <dl class="kv">
+          <dt>Status</dt><dd><span class="badge ${statusBadge(job.status)}">${esc(job.status)}</span></dd>
+          <dt>Customer</dt><dd>${esc(names[job.customer_id] || '—')}</dd>
+          <dt>Assigned Technician</dt><dd>${esc(names[job.technician_id] || 'Not assigned')}</dd>
+          <dt>Address</dt><dd>${esc(job.address || '—')}${job.suburb ? ', ' + esc(job.suburb) : ''}</dd>
+          <dt>Description</dt><dd>${esc(job.description || '—')}</dd>
+          <dt>Callout Fee</dt><dd>${job.callout_fee != null ? 'R' + Number(job.callout_fee).toFixed(2) : '—'}</dd>
+          <dt>Created</dt><dd>${fmtDateTime(job.created_at)}</dd>
+          <dt>Accepted</dt><dd>${fmtDateTime(job.accepted_at)}</dd>
+          <dt>Completed</dt><dd>${fmtDateTime(job.completed_at)}</dd>
+        </dl>
+      </div>
+
+      <div class="pane" id="pane-messages" style="display:none">
+        ${M.length ? M.map(m => `
+          <div class="chat-msg ${m.sender_id === state.session.user.id ? 'mine' : ''}">
+            <div>
+              <div class="chat-bubble">${esc(m.content)}</div>
+              <div class="chat-meta"><span>${esc(names[m.sender_id] || 'Unknown')}</span><span>${fmtDateTime(m.created_at)}</span><span>${m.read_at ? 'read' : 'unread'}</span></div>
+            </div>
+          </div>`).join('') : '<div class="empty">No messages on this job</div>'}
+      </div>
+
+      <div class="pane" id="pane-quotes" style="display:none">
+        ${Q.length ? `<div class="table-wrap"><table>
+          <thead><tr><th>Quote #</th><th>Title</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>${Q.map(q => `<tr>
+            <td><strong>${esc(q.quote_number || '—')}</strong></td>
+            <td>${esc(q.title || '—')}</td>
+            <td><strong>R${(q.total || 0).toFixed(2)}</strong></td>
+            <td><span class="badge ${statusBadge(q.status)}">${esc(q.status)}</span></td>
+            <td>${fmtDate(q.created_at)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>` : '<div class="empty">No quotes for this job</div>'}
+      </div>
+
+      <div class="pane" id="pane-invoices" style="display:none">
+        ${I.length ? `<div class="table-wrap"><table>
+          <thead><tr><th>Invoice #</th><th>Subtotal</th><th>Tax</th><th>Total</th><th>Status</th><th>Paid</th></tr></thead>
+          <tbody>${I.map(inv => `<tr>
+            <td><strong>${esc(inv.invoice_number || '—')}</strong></td>
+            <td>R${(inv.subtotal || 0).toFixed(2)}</td>
+            <td>R${(inv.tax_amount || 0).toFixed(2)}</td>
+            <td><strong>R${(inv.total || 0).toFixed(2)}</strong></td>
+            <td><span class="badge ${inv.status === 'paid' ? 'badge-green' : inv.status === 'issued' ? 'badge-blue' : inv.status === 'cancelled' ? 'badge-red' : 'badge-gray'}">${esc(inv.status)}</span></td>
+            <td>${inv.paid_at ? fmtDate(inv.paid_at) : '—'}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>` : '<div class="empty">No invoices for this job</div>'}
+      </div>
+
+      <div class="pane" id="pane-calls" style="display:none">
+        ${C.length ? `<div class="table-wrap"><table>
+          <thead><tr><th>Caller</th><th>Callee</th><th>Status</th><th>Duration</th><th>Started</th></tr></thead>
+          <tbody>${C.map(c => `<tr>
+            <td>${esc(c.caller_name || names[c.caller_id] || '—')}</td>
+            <td>${esc(names[c.callee_id] || '—')}</td>
+            <td><span class="badge ${c.status === 'ended' ? 'badge-green' : c.status === 'ongoing' ? 'badge-blue' : c.status === 'missed' ? 'badge-red' : 'badge-gray'}">${esc(c.status)}</span></td>
+            <td>${fmtDuration(callDuration(c))}</td>
+            <td>${fmtDateTime(c.started_at || c.created_at)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>` : '<div class="empty">No calls on this job</div>'}
+      </div>
+
+      <div class="pane" id="pane-media" style="display:none">
+        ${(job.images || []).length ? `<div class="thumbs">${thumbs}</div>` : '<div class="empty">No photos on this job</div>'}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeJobModal()">Close</button>
+      </div>`;
+  } catch (e) {
+    overlay.querySelector('.modal').innerHTML = `<h2>Error</h2><p style="color:#dc2626;font-size:13px">${esc(e.message)}</p>`;
+  }
+};
+
+window.jobTab = function(btn, paneId) {
+  btn.closest('.modal').querySelectorAll('.pane').forEach(p => { p.style.display = 'none'; });
+  document.querySelectorAll('.modal-tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(paneId).style.display = '';
+};
+
+window.closeJobModal = function() {
+  const m = document.getElementById('job-modal');
+  if (m) m.remove();
+};
 
 // ── Quotes ──
 async function loadQuotes(el) {
@@ -723,12 +991,13 @@ async function loadQuotes(el) {
     const quotes = await fetchQuotes();
     if (!quotes.length) { el.innerHTML = '<div class="empty">No quotes found</div>'; return; }
     el.innerHTML = `<div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Quote #</th><th>Title</th><th>Customer</th><th>Total</th><th>Status</th><th>Created</th></tr></thead>
+      <thead><tr><th>Quote #</th><th>Title</th><th>Customer</th><th>Total</th><th>Photos</th><th>Status</th><th>Created</th></tr></thead>
       <tbody>${quotes.map(q => `<tr>
         <td><strong>${esc(q.quote_number || '—')}</strong></td>
         <td>${esc(q.title || '—')}</td>
         <td>${esc(q.profiles?.full_name || '—')}</td>
         <td><strong>R${(q.total || 0).toFixed(2)}</strong></td>
+        <td>${(q.images || []).length ? `<a href="#media" style="color:#f97316;font-weight:700;font-size:12px">🖼️ ${q.images.length}</a>` : '<span style="color:#cbd5e1">—</span>'}</td>
         <td><span class="badge ${statusBadge(q.status)}">${esc(q.status)}</span></td>
         <td>${fmtDate(q.created_at)}</td>
       </tr>`).join('')}</tbody>
@@ -755,6 +1024,219 @@ async function loadInvoices(el) {
   } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
 
+// ── RLS hint ──
+// Admin read policies for messages / calls / notifications live in migration 037.
+function rlsHint(table) {
+  return `<div class="empty">
+    <div style="font-size:34px;margin-bottom:10px">🔒</div>
+    <strong style="display:block;margin-bottom:6px">No ${esc(table)} visible</strong>
+    <span style="display:block;max-width:440px;margin:0 auto 14px">Admins can only read these rows after the admin read policy is applied. Run <code>supabase/migrations/037_admin_read_all.sql</code> in the Supabase SQL editor, then reload.</span>
+  </div>`;
+}
+
+// ── Messages ──
+async function loadMessages(el) {
+  try {
+    const [messages, names, jobs] = await Promise.all([fetchMessages(), fetchNameMap(), fetchJobNameMap()]);
+    if (!messages.length) { el.innerHTML = rlsHint('messages'); return; }
+
+    // Group by job so each conversation reads top-to-bottom
+    const groups = {};
+    messages.forEach(m => { (groups[m.job_id] = groups[m.job_id] || []).push(m); });
+
+    el.innerHTML = `
+      <div class="toolbar">
+        <input id="msg-search" placeholder="Search message text, sender or job ref…">
+        <select id="msg-job"><option value="">All jobs</option>
+          ${Object.keys(groups).map(id => `<option value="${id}">${esc(jobs[id] || id.slice(0, 8))}</option>`).join('')}
+        </select>
+        <span class="count-note">${messages.length} messages · ${Object.keys(groups).length} conversations</span>
+      </div>
+      <div id="msg-results">
+        ${Object.entries(groups).map(([jobId, msgs]) => {
+          msgs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          const ref = jobs[jobId] || jobId.slice(0, 8);
+          const senders = [...new Set(msgs.map(m => names[m.sender_id] || 'Unknown'))];
+          return `<div class="chat-thread" data-job="${esc(jobId)}">
+            <div class="chat-head">
+              <div>
+                <div class="who">${esc(ref)}</div>
+                <div class="sub">${esc(senders.join(' ↔ '))} · ${msgs.length} message${msgs.length === 1 ? '' : 's'}</div>
+              </div>
+            </div>
+            ${msgs.map(m => `
+              <div class="chat-msg ${m.sender_id === state.session.user.id ? 'mine' : ''}">
+                <div>
+                  <div class="chat-bubble">${esc(m.content)}</div>
+                  <div class="chat-meta">
+                    <span>${esc(names[m.sender_id] || 'Unknown')}</span>
+                    <span>${fmtDateTime(m.created_at)}</span>
+                    <span>${m.read_at ? 'read' : 'unread'}</span>
+                  </div>
+                </div>
+              </div>`).join('')}
+          </div>`;
+        }).join('')}
+      </div>`;
+
+    const wire = () => {
+      const q = document.getElementById('msg-search').value.toLowerCase();
+      const jf = document.getElementById('msg-job').value;
+      document.querySelectorAll('.chat-thread').forEach(t => {
+        const okJob = !jf || t.dataset.job === jf;
+        const okText = !q || t.textContent.toLowerCase().includes(q);
+        t.style.display = okJob && okText ? '' : 'none';
+      });
+    };
+    document.getElementById('msg-search').addEventListener('input', wire);
+    document.getElementById('msg-job').addEventListener('change', wire);
+  } catch (e) {
+    el.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Calls ──
+async function loadCalls(el) {
+  try {
+    const [calls, names, jobs] = await Promise.all([fetchCalls(), fetchNameMap(), fetchJobNameMap()]);
+    if (!calls.length) { el.innerHTML = rlsHint('calls'); return; }
+    const totalSecs = calls.reduce((s, c) => s + callDuration(c), 0);
+    el.innerHTML = `
+      <div class="card" style="margin-bottom:20px">
+        <h2>Call Summary</h2>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value" style="color:#0a1929">${calls.length}</div><div class="stat-label">Total Calls</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#2e7d32">${calls.filter(c => c.status === 'ended').length}</div><div class="stat-label">Connected</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#dc2626">${calls.filter(c => c.status === 'missed').length}</div><div class="stat-label">Missed</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#e65100">${fmtDuration(totalSecs)}</div><div class="stat-label">Talk Time</div></div>
+        </div>
+      </div>
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Job</th><th>Caller</th><th>Callee</th><th>Status</th><th>Duration</th><th>Channel</th><th>Started</th></tr></thead>
+        <tbody>${calls.map(c => `<tr>
+          <td><strong>${esc(jobs[c.job_id] || '—')}</strong></td>
+          <td>${esc(c.caller_name || names[c.caller_id] || '—')}</td>
+          <td>${esc(names[c.callee_id] || '—')}</td>
+          <td><span class="badge ${c.status === 'ended' ? 'badge-green' : c.status === 'ongoing' ? 'badge-blue' : c.status === 'missed' ? 'badge-red' : 'badge-gray'}">${esc(c.status)}</span></td>
+          <td>${fmtDuration(callDuration(c))}</td>
+          <td><code style="font-size:11px;color:#64748b">${esc(c.channel_name || '—')}</code></td>
+          <td>${fmtDateTime(c.started_at || c.created_at)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Reviews ──
+async function loadReviews(el) {
+  try {
+    const [reviews, names] = await Promise.all([fetchReviews(), fetchNameMap()]);
+    if (!reviews.length) { el.innerHTML = '<div class="empty">No reviews yet</div>'; return; }
+    const avg = reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length;
+    el.innerHTML = `
+      <div class="card" style="margin-bottom:20px">
+        <h2>Ratings Overview</h2>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value" style="color:#f59e0b">${avg.toFixed(1)}★</div><div class="stat-label">Average Rating</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#0a1929">${reviews.length}</div><div class="stat-label">Total Reviews</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#2e7d32">${reviews.filter(r => (r.rating || 0) >= 4).length}</div><div class="stat-label">4★ &amp; Above</div></div>
+        </div>
+      </div>
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Rating</th><th>Review</th><th>Customer</th><th>Technician</th><th>Date</th></tr></thead>
+        <tbody>${reviews.map(r => `<tr>
+          <td><span class="stars">${'★'.repeat(r.rating || 0)}${'☆'.repeat(5 - (r.rating || 0))}</span></td>
+          <td>${esc(r.review || '—')}</td>
+          <td>${esc(names[r.customer_id] || '—')}</td>
+          <td>${esc(names[r.technician_id] || '—')}</td>
+          <td>${fmtDate(r.created_at)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Notifications ──
+async function loadNotifications(el) {
+  try {
+    const [notes, names] = await Promise.all([fetchNotifications(), fetchNameMap()]);
+    if (!notes.length) { el.innerHTML = rlsHint('notifications'); return; }
+    el.innerHTML = `
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Type</th><th>Title</th><th>Body</th><th>Recipient</th><th>Read</th><th>Sent</th></tr></thead>
+        <tbody>${notes.map(n => `<tr>
+          <td><span class="badge badge-purple">${esc(n.type || 'info')}</span></td>
+          <td><strong>${esc(n.title || '—')}</strong></td>
+          <td>${esc(n.body || '—')}</td>
+          <td>${esc(names[n.user_id] || '—')}</td>
+          <td><span class="badge ${n.is_read ? 'badge-gray' : 'badge-orange'}">${n.is_read ? 'read' : 'unread'}</span></td>
+          <td>${fmtDateTime(n.created_at)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Media (all uploaded images) ──
+async function loadMedia(el) {
+  try {
+    const [jobs, quotes, businesses] = await Promise.all([
+      _supabase.from('jobs').select('id, reference_number, description, images').limit(200),
+      _supabase.from('quotes').select('id, quote_number, title, images').limit(200),
+      _supabase.from('business_profiles').select('id, business_name, logo_url, gallery_urls, certificate_urls').limit(200),
+    ]);
+
+    const j = jobs.data || [], q = quotes.data || [], b = businesses.data || [];
+    const jobPhotos = [], quotePhotos = [], bizMedia = [];
+
+    j.forEach(job => (job.images || []).forEach(u => jobPhotos.push({ url: u, ref: job.reference_number, desc: job.description })));
+    q.forEach(quote => (quote.images || []).forEach(u => quotePhotos.push({ url: u, ref: quote.quote_number, desc: quote.title })));
+    b.forEach(biz => {
+      if (biz.logo_url) bizMedia.push({ url: biz.logo_url, ref: biz.business_name, desc: 'Logo' });
+      (biz.gallery_urls || []).forEach(u => bizMedia.push({ url: u, ref: biz.business_name, desc: 'Gallery' }));
+      (biz.certificate_urls || []).forEach(u => bizMedia.push({ url: u, ref: biz.business_name, desc: 'Certificate' }));
+    });
+
+    const total = jobPhotos.length + quotePhotos.length + bizMedia.length;
+    if (!total) { el.innerHTML = '<div class="empty">No images uploaded yet</div>'; return; }
+
+    const section = (title, items) => items.length ? `
+      <div class="media-section">
+        <h2>${title} (${items.length})</h2>
+        <div class="media-grid">
+          ${items.map(it => `<div class="media-item" onclick="openLightbox('${jsq(it.url)}', '${jsq((it.ref || '') + ' — ' + (it.desc || ''))}')">
+            <div class="thumb" style="background-image:url('${esc(it.url)}')" onerror="this.style.backgroundImage='none';this.textContent='🖼️'"></div>
+            <div class="cap">
+              <div class="t" title="${esc(it.ref || '')}">${esc(it.ref || '—')}</div>
+              <div class="s">${esc((it.desc || '').substring(0, 40))}</div>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>` : '';
+
+    el.innerHTML = `
+      <div class="card" style="margin-bottom:20px"><h2>Media Library (${total})</h2>
+        <p style="font-size:13px;color:#64748b">All job photos, quote photos and business media. Click any image to view full size.</p>
+      </div>
+      ${section('Job Photos', jobPhotos)}
+      ${section('Quote Photos', quotePhotos)}
+      ${section('Business Logos, Galleries &amp; Certificates', bizMedia)}`;
+  } catch (e) {
+    el.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+window.openLightbox = function(url, caption) {
+  const box = document.createElement('div');
+  box.className = 'lightbox';
+  box.onclick = () => box.remove();
+  box.innerHTML = `<img src="${esc(url)}" alt=""><div class="lb-cap">${esc(caption || '')}</div>`;
+  document.body.appendChild(box);
+};
+
 // ── Categories ──
 async function loadCategories(el) {
   try {
@@ -777,7 +1259,7 @@ async function loadCategories(el) {
             <td>${esc(c.name)}</td>
             <td><strong>${esc(c.display_name)}</strong></td>
             <td>${esc(c.description || '')}</td>
-            <td><button class="btn btn-sm btn-danger" onclick="deleteCategory('${c.id}','${esc(c.display_name)}')">Delete</button></td>
+            <td><button class="btn btn-sm btn-danger" onclick="deleteCategory('${c.id}','${jsq(c.display_name)}')">Delete</button></td>
           </tr>`).join('')}</tbody>
         </table></div>` : '<div class="empty">No categories yet</div>'}
       </div>
@@ -816,10 +1298,40 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// Escape a value for use inside a single-quoted inline JS string (onclick="...").
+// esc() does not escape quotes, so captions/URLs must go through this.
+function jsq(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/\r?\n/g, ' ');
+}
+
 function fmtDate(iso) {
   if (!iso) return '—';
   try { return new Date(iso).toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }); }
   catch(_) { return iso; }
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  catch(_) { return iso; }
+}
+
+function callDuration(c) {
+  if (!c.started_at || !c.ended_at) return 0;
+  const s = (new Date(c.ended_at) - new Date(c.started_at)) / 1000;
+  return s > 0 ? s : 0;
+}
+
+function fmtDuration(secs) {
+  secs = Math.round(secs || 0);
+  if (secs < 60) return `${secs}s`;
+  const m = Math.floor(secs / 60);
+  if (m < 60) return `${m}m ${secs % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
 function statusBadge(s) {
@@ -827,7 +1339,9 @@ function statusBadge(s) {
     pending: 'badge-orange', accepted: 'badge-blue', on_the_way: 'badge-blue',
     arrived: 'badge-teal', in_progress: 'badge-purple', completed: 'badge-green',
     cancelled: 'badge-red', draft: 'badge-gray', sent: 'badge-blue',
-    paid: 'badge-green', issued: 'badge-blue',
+    paid: 'badge-green', issued: 'badge-blue', pending_payment: 'badge-orange',
+    rejected: 'badge-red', converted_to_job: 'badge-purple',
+    missed: 'badge-red', ended: 'badge-green', ongoing: 'badge-blue',
   };
   return map[s] || 'badge-gray';
 }
