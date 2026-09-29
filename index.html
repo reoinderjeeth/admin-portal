@@ -428,7 +428,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'f16bfac+inv038';
+const BUILD = '6c7c639';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -759,6 +759,7 @@ function renderShell() {
     { route: 'reviews', icon: '⭐', label: 'Reviews' },
     { route: 'notifications', icon: '🔔', label: 'Notifications' },
     { route: 'categories', icon: '📂', label: 'Categories' },
+    { route: 'setup', icon: '🔧', label: 'Setup Check' },
   ];
   return `
     <div class="app">
@@ -788,7 +789,7 @@ function renderShell() {
 
 // ── Page loader ──
 function loadPage(route) {
-  const titles = { dashboard: 'Dashboard', users: 'Users', businesses: 'Businesses', jobs: 'Jobs', messages: 'Messages', media: 'Images', quotes: 'Quotes', invoices: 'Invoices', calls: 'Calls', reviews: 'Reviews', notifications: 'Notifications', categories: 'Categories' };
+  const titles = { dashboard: 'Dashboard', users: 'Users', businesses: 'Businesses', jobs: 'Jobs', messages: 'Messages', media: 'Images', quotes: 'Quotes', invoices: 'Invoices', calls: 'Calls', reviews: 'Reviews', notifications: 'Notifications', categories: 'Categories', setup: 'Setup Check' };
   document.getElementById('page-title').textContent = titles[route] || 'Dashboard';
   const content = document.getElementById('page-content');
   content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -805,6 +806,7 @@ function loadPage(route) {
     case 'reviews': loadReviews(content); break;
     case 'notifications': loadNotifications(content); break;
     case 'categories': loadCategories(content); break;
+    case 'setup': loadSetupCheck(content); break;
     default: content.innerHTML = '<div class="empty">Page not found</div>';
   }
 }
@@ -871,6 +873,7 @@ async function runDiagnostics(el) {
       <code>admin_row_counts()</code> function is not installed, so
       <code>supabase/migrations/038_admin_row_counts.sql</code> has not been run yet.<br><br>
       Until it is, this panel cannot tell apart "no data yet" from "permissions are hiding data".
+      <br><br><a href="#setup" class="btn btn-sm btn-primary">Open Setup Check</a>
     </div>`;
     return;
   }
@@ -927,6 +930,87 @@ async function runDiagnostics(el) {
 }
 
 // ── Users ──
+// --- Setup Check -------------------------------------------------------
+function loadSetupCheck(el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="sub-head" style="margin-top:0">Setup Check</div>
+      <div id="setup-body"></div>
+    </div>`;
+  runSetupCheck();
+}
+
+// Everything the portal needs that lives outside the deployed HTML: two
+// migrations and two edge functions. Each is probed for real, so this reports
+// what is actually missing rather than what a human remembers to run.
+async function runSetupCheck() {
+  const box = document.getElementById('setup-body');
+  if (!box) return;
+  box.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  const out = [];
+
+  // profiles.is_active only exists once 039 has run.
+  try {
+    const { error } = await _supabase.from('profiles').select('id,is_active').limit(1);
+    out.push({
+      ok: !error, name: 'Migration 039 — profiles.is_active',
+      fix: 'supabase/migrations/039_admin_user_management.sql',
+      detail: error ? 'not applied' : 'applied',
+    });
+  } catch (_) {
+    out.push({ ok: false, name: 'Migration 039 — profiles.is_active', fix: 'supabase/migrations/039_admin_user_management.sql', detail: 'check failed' });
+  }
+
+  // admin_row_counts() only exists once 038 has run.
+  try {
+    const { error } = await _supabase.rpc('admin_row_counts');
+    out.push({
+      ok: !error, name: 'Migration 038 — admin_row_counts()',
+      fix: 'supabase/migrations/038_admin_row_counts.sql',
+      detail: error ? 'not applied' : 'applied',
+    });
+  } catch (_) {
+    out.push({ ok: false, name: 'Migration 038 — admin_row_counts()', fix: 'supabase/migrations/038_admin_row_counts.sql', detail: 'check failed' });
+  }
+
+  // Edge functions: a deliberate bad call. Any answer other than 404 means the
+  // function is deployed. The call is rejected on purpose, so nothing is written.
+  for (const fn of ['add-business', 'admin-manage-user']) {
+    let ok = false, detail = 'not deployed';
+    try {
+      const { error } = await _supabase.functions.invoke(fn, {
+        body: fn === 'add-business' ? {} : { userId: '00000000-0000-0000-0000-000000000000', action: 'preview' },
+      });
+      // 400/403 mean the function ran and rejected the input, so it exists.
+      if (!error) { ok = true; detail = 'deployed'; }
+      else if (!/not found|404|does not exist/i.test(error.message)) { ok = true; detail = 'deployed'; }
+    } catch (e) {
+      if (!/not found|404|does not exist/i.test(String(e.message || e))) { ok = true; detail = 'deployed'; }
+    }
+    out.push({ ok, name: `Function ${fn}`, fix: `supabase functions deploy ${fn}`, detail });
+  }
+
+  const missing = out.filter(o => !o.ok);
+  box.innerHTML = `
+    <p style="font-size:12px;color:#64748b;margin-bottom:12px">
+      These four items live outside this page. Everything else works without them.
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Status</th><th>Item</th><th>How to fix</th></tr></thead>
+      <tbody>${out.map(o => `<tr>
+        <td><span class="badge ${o.ok ? 'badge-green' : 'badge-orange'}">${o.ok ? 'OK' : o.detail}</span></td>
+        <td>${esc(o.name)}</td>
+        <td>${o.ok ? '<span style="color:#94a3b8">—</span>' : `<code style="font-size:11px;color:#0f172a">${esc(o.fix)}</code>`}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${missing.length ? `<p style="font-size:12px;color:#b45309;margin-top:12px">
+      ${missing.length} item${missing.length === 1 ? '' : 's'} still to set up. The affected buttons say so
+      when used rather than failing silently.
+    </p>` : '<p style="font-size:12px;color:#16a34a;margin-top:12px">Everything is set up.</p>'}`;
+}
+
+window.runSetupCheck = runSetupCheck;
+
 // --- Users -------------------------------------------------------------
 // Customers and Technicians are kept in separate tabs because they are
 // governed differently: a technician belongs to a business and is switched
@@ -1002,9 +1086,20 @@ function namesFromUsers(users) {
   return map;
 }
 
+// profiles.is_active arrives with migration 039. Detect that specific failure
+// so an unrun migration reads as a setup step, not a database error.
+const NO_IS_ACTIVE = /column profiles\.is_active does not exist|is_active/i;
+
 window.toggleUserActive = async function(id, active) {
   const { error } = await _supabase.from('profiles').update({ is_active: active }).eq('id', id);
-  if (error) { toast('Error: ' + error.message); return; }
+  if (error) {
+    if (NO_IS_ACTIVE.test(error.message)) {
+      toast('Run supabase/migrations/039_admin_user_management.sql first', 7000);
+    } else {
+      toast('Error: ' + error.message, 6000);
+    }
+    return;
+  }
   // Technicians have their own flag; keep the two in step.
   await _supabase.from('technicians').update({ is_active: active }).eq('id', id);
   toast(active ? 'User reactivated' : 'User deactivated');

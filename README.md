@@ -121,10 +121,29 @@ Deactivation requires migration `039`, which adds `profiles.is_active` and a
 trigger that blocks new sign-ins for deactivated accounts. Until it is
 applied, the *Deactivate* button will fail.
 
+## Setup Check
+
+Open **Setup Check** in the sidebar. It probes the two migrations and two edge
+functions live and shows exactly which are missing, with the command to fix
+each. Nothing is inferred from memory, so it reflects the real state of the
+project rather than what was intended.
+
+Nothing else in the portal depends on these four items, so an unrun migration
+only disables the feature that needs it. Each affected button names the file
+to run instead of surfacing a database error.
+
+| Missing | What stops working |
+| --- | --- |
+| Migration 039 | Deactivate / Reactivate on Users |
+| Migration 038 | Dashboard → Data Access Check |
+| `add-business` | Add Business button |
+| `admin-manage-user` | Remove User (Edit and Deactivate still work) |
+
 ## Pages
 
 | Page | Contents |
 | --- | --- |
+| Setup Check | Probes migrations and edge functions, lists what is missing |
 | Dashboard | Headline counts plus a **Data Access Check** diagnostic table |
 | Users | Customers and Technicians in separate tabs, with edit, deactivate and remove |
 | Businesses | Verification queue, logos, media counts, plus **Add Business** to provision a new business and its owner login |
