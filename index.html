@@ -1338,6 +1338,7 @@ window.viewQuote = async function(id) {
       <div class="modal-tabs">
         <button class="active" onclick="quoteTab(this,'quote-pane-doc')">Quote Document</button>
         <button onclick="quoteTab(this,'quote-pane-comm')">Communication (${commCount})</button>
+        <button onclick="quoteTab(this,'quote-pane-img')">Images (${images.length})</button>
       </div>
 
       <div class="pane" id="quote-pane-doc">
@@ -1393,15 +1394,6 @@ window.viewQuote = async function(id) {
         <div class="doc-stamp ${q.status === 'accepted' ? '' : 'unpaid'}">${esc(String(q.status || 'draft').toUpperCase())}</div>
         ${q.notes ? `<div class="doc-note"><strong>Notes:</strong> ${esc(q.notes)}</div>` : ''}
 
-        ${images.length ? `
-          <div class="sub-head" style="margin-top:24px">Attached photos (${images.length})</div>
-          <div class="media-grid">
-            ${images.map((u, i) => `<div class="media-item" onclick="openLightbox('${jsq(u)}', '${jsq((q.quote_number || 'Quote') + ' — photo ' + (i + 1))}')">
-              <div class="thumb" style="background-image:url('${esc(u)}')" onerror="this.style.backgroundImage='none';this.textContent='🖼️'"></div>
-              <div class="cap"><div class="t">Photo ${i + 1}</div></div>
-            </div>`).join('')}
-          </div>` : '<div class="doc-note">No photos attached to this quote.</div>'}
-
         <div class="sub-head" style="margin-top:24px">Details</div>
         <dl class="kv" style="grid-template-columns:130px 1fr">
           ${meta.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join('')}
@@ -1412,6 +1404,28 @@ window.viewQuote = async function(id) {
       <div class="pane" id="quote-pane-comm" style="display:none">
         <div class="sub-head">Client ↔ Installer communication</div>
         ${renderCommunication(comm, parties, { viewerId: state.session?.user?.id })}
+      </div>
+
+      <div class="pane" id="quote-pane-img" style="display:none">
+        <div class="sub-head">Attached photos (${images.length})</div>
+        ${images.length ? `
+          <div class="media-grid">
+            ${images.map((u, i) => `<div class="media-item" onclick="openLightbox('${jsq(u)}', '${jsq((q.quote_number || 'Quote') + ' — photo ' + (i + 1))}')">
+              <div class="thumb" style="background-image:url('${esc(u)}')" onerror="this.style.backgroundImage='none';this.textContent='🖼️'"></div>
+              <div class="cap"><div class="t">Photo ${i + 1}</div></div>
+            </div>`).join('')}
+          </div>
+          <p style="font-size:11px;color:#94a3b8;margin-top:12px">
+            Click any photo to view it full size.
+          </p>` : `
+          <div class="empty" style="box-shadow:none;background:#f8fafc">
+            <div style="font-size:30px;margin-bottom:10px">🖼️</div>
+            <strong>No photos attached to this quote</strong>
+            <span style="display:block;margin-top:6px">
+              Photos are kept on the linked job rather than the quote.
+              ${jobRef ? `See the Images tab on job ${esc(jobRef)}.` : ''}
+            </span>
+          </div>`}
       </div>
 
       <div class="modal-actions">
@@ -1450,7 +1464,7 @@ window.downloadQuotePDF = async function() {
   const btn = document.querySelector('#quote-modal .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Building PDF...'; }
 
-  const { q, biz, jobRef, logo, items, images, customerName, techName } = _quote;
+  const { q, biz, jobRef, logo, items, customerName, techName } = _quote;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
@@ -1567,38 +1581,8 @@ window.downloadQuotePDF = async function() {
     doc.text(doc.splitTextToSize('Notes: ' + q.notes, W - M * 2), M, y);
   }
 
-  // Attached photos, two per row with captions.
-  // Row-based so a page reset and a row advance can never compound
-  // (a per-item index would re-apply the row offset after a break).
-  if (images.length) {
-    y += 34;
-    if (y > 640) { doc.addPage(); y = M; }
-    doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(10, 25, 41);
-    doc.text(`Attached photos (${images.length})`, M, y);
-    y += 14;
-    const boxW = (W - M * 2 - 12) / 2;
-    const boxH = Math.min(120, boxW * 0.75);
-    for (let i = 0; i < images.length; i += 2) {
-      if (y + boxH > 780) { doc.addPage(); y = M; }
-      for (let c = 0; c < 2 && i + c < images.length; c++) {
-        const idx = i + c;
-        const cx = M + c * (boxW + 12);
-        let drawn = false;
-        try {
-          const data = await loadImageAsDataUrl(images[idx]);
-          if (data) { doc.addImage(data, 'JPEG', cx, y, boxW, boxH); drawn = true; }
-        } catch (_) { /* fall through to placeholder */ }
-        if (!drawn) {
-          doc.setDrawColor(226, 232, 240).setLineWidth(0.5).rect(cx, y, boxW, boxH);
-          doc.setFontSize(7).setTextColor(148, 163, 184);
-          doc.text('Image unavailable', cx + boxW / 2, y + boxH / 2, { align: 'center' });
-        }
-        doc.setFontSize(7).setTextColor(148, 163, 184);
-        doc.text('Photo ' + (idx + 1), cx + 2, y + boxH + 10);
-      }
-      y += boxH + 22;
-    }
-  }
+  // Photos are deliberately excluded: they live in the modal's Images tab,
+  // and a document emailed to the client should not carry the job gallery.
 
   doc.save(`${(q.quote_number || 'quote').replace(/[^\w.-]/g, '_')}.pdf`);
   if (btn) { btn.disabled = false; btn.textContent = '⬇️ Download PDF'; }

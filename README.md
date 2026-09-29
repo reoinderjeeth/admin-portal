@@ -61,7 +61,7 @@ If 038 is missing, the Dashboard shows a notice saying so instead of guessing.
 | Jobs | All jobs with a **View** button opening a per-job detail modal |
 | Messages | Every chat transcript, grouped per job, with search + job filter |
 | Images | All job photos, quote photos, business logos, galleries and certificates |
-| Quotes | All quotes with a **View** button: full quote document, photos, print and PDF download |
+| Quotes | All quotes with a **View** button: sub-tabs for the quote document, communication, and images; plus print and PDF download |
 | Invoices | All invoices with a **View** button: full invoice document, print, and PDF download |
 | Calls | Call history with talk-time summary and per-call duration |
 | Reviews | Ratings and written feedback |
@@ -75,12 +75,20 @@ Invoices and quotes both render as a real document (logo, parties, line items,
 VAT, status stamp) and can be downloaded as a PDF or printed. PDFs are
 generated client-side with jsPDF, so no server round-trip is involved.
 
-A quote's `View` modal shows everything the quotes table does not: the scope
-of work, notes, validity window, scheduled start, acceptance date, last-updated
-timestamp, linked job and status, business and technician, and all attached
-photos as a clickable gallery. The downloaded PDF embeds those photos two per
-row, paginating as needed. If a photo cannot be fetched, a placeholder is drawn
-rather than failing the export.
+A quote's `View` modal is split into three sub-tabs, so the document stays
+readable rather than being buried under a photo gallery:
+
+- **Quote Document** — the document itself: scope of work, line items, VAT
+  breakdown, notes, validity window (flagged once expired), scheduled start,
+  acceptance date, last-updated timestamp, linked job and status, business,
+  technician, and customer.
+- **Communication** — the full client ↔ installer history for the linked job.
+- **Images** — attached photos as a clickable gallery, opening a lightbox.
+  Where a quote has no photos, it points you at the linked job's Images tab.
+
+Photos are intentionally excluded from the printed and downloaded PDF. That
+document is what a client would be sent, and it should carry the quote, not the
+installer's job gallery. The print stylesheet prints the document tab only.
 
 ## Caching
 
