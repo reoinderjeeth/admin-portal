@@ -927,22 +927,246 @@ async function runDiagnostics(el) {
 }
 
 // ── Users ──
+// --- Users -------------------------------------------------------------
+// Customers and Technicians are kept in separate tabs because they are
+// governed differently: a technician belongs to a business and is switched
+// off via technicians.is_active, while a customer has no such row.
+let _userTab = 'customers';
+
 async function loadUsers(el) {
   try {
     const users = await fetchUsers();
-    if (!users.length) { el.innerHTML = '<div class="empty">No users found</div>'; return; }
-    el.innerHTML = `<div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Created</th></tr></thead>
-      <tbody>${users.map(u => `<tr>
-        <td>${esc(u.full_name || '—')}</td>
-        <td>${esc(u.email || '—')}</td>
-        <td>${esc(u.phone || '—')}</td>
-        <td><span class="badge badge-${u.role === 'admin' ? 'purple' : u.role === 'business' ? 'blue' : u.role === 'technician' ? 'orange' : 'green'}">${esc(u.role || '—')}</span></td>
-        <td>${fmtDate(u.created_at)}</td>
-      </tr>`).join('')}</tbody>
-    </table></div></div>`;
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <div class="modal-tabs" style="margin:0">
+          <button class="${_userTab === 'customers' ? 'active' : ''}" onclick="setUserTab('customers')">Customers (${users.filter(u => u.role === 'customer').length})</button>
+          <button class="${_userTab === 'technicians' ? 'active' : ''}" onclick="setUserTab('technicians')">Technicians (${users.filter(u => u.role === 'technician').length})</button>
+        </div>
+        <span style="font-size:12px;color:#94a3b8">Deactivate to keep their history. Remove deletes the login permanently.</span>
+      </div>
+      <div id="user-table"></div>`;
+    renderUserTable(users);
   } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
+
+window.setUserTab = function(tab) { _userTab = tab; loadPage('users'); };
+
+async function renderUserTable(users) {
+  const box = document.getElementById('user-table');
+  if (!box) return;
+  const rows = users.filter(u => u.role === _userTab);
+
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty">No ${_userTab} found</div>`;
+    return;
+  }
+
+  // Technicians need their active flag from the technicians table.
+  let techActive = {};
+  if (_userTab === 'technicians') {
+    const { data } = await _supabase.from('technicians').select('id, is_active, business_id');
+    (data || []).forEach(t => { techActive[t.id] = t; });
+  }
+
+  box.innerHTML = `<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+    <tbody>${rows.map(u => {
+      const isTech = u.role === 'technician';
+      const tech = techActive[u.id];
+      const active = isTech ? (tech?.is_active !== false && u.is_active !== false) : u.is_active !== false;
+      const biz = tech?.business_id ? namesFromUsers(users)[tech.business_id] : null;
+      return `<tr style="${active ? '' : 'opacity:.55'}">
+        <td><strong>${esc(u.full_name || '-')}</strong>${biz ? `<div style="font-size:11px;color:#94a3b8">${esc(biz)}</div>` : ''}</td>
+        <td>${esc(u.email || '-')}</td>
+        <td>${esc(u.phone || '-')}</td>
+        <td><span class="badge ${active ? 'badge-green' : 'badge-gray'}">${active ? 'active' : 'deactivated'}</span></td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>
+          <div class="row-actions">
+            <button class="btn btn-sm btn-primary" onclick="editUser('${u.id}')">Edit</button>
+            <button class="btn btn-sm ${active ? 'btn-secondary' : 'btn-success'}" onclick="toggleUserActive('${u.id}',${!active})">
+              ${active ? 'Deactivate' : 'Reactivate'}
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="removeUser('${u.id}')">Remove</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div></div>`;
+}
+
+// Business name lookup, for showing which company a technician belongs to.
+function namesFromUsers(users) {
+  const map = {};
+  users.forEach(u => { map[u.id] = u.full_name; });
+  return map;
+}
+
+window.toggleUserActive = async function(id, active) {
+  const { error } = await _supabase.from('profiles').update({ is_active: active }).eq('id', id);
+  if (error) { toast('Error: ' + error.message); return; }
+  // Technicians have their own flag; keep the two in step.
+  await _supabase.from('technicians').update({ is_active: active }).eq('id', id);
+  toast(active ? 'User reactivated' : 'User deactivated');
+  loadPage('users');
+};
+
+window.editUser = async function(id) {
+  const { data } = await _supabase.from('profiles').select('*').eq('id', id).single();
+  if (!data) { toast('User not found'); return; }
+
+  const isTech = data.role === 'technician';
+  const { data: tech } = isTech
+    ? await _supabase.from('technicians').select('business_id').eq('id', id).maybeSingle()
+    : { data: null };
+  const { data: bizs } = isTech
+    ? await _supabase.from('business_profiles').select('id, business_name').order('business_name')
+    : { data: [] };
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'edituser-modal';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Edit ${isTech ? 'Technician' : 'Customer'}</h2>
+      <div class="form-group"><label>Full Name</label><input id="eu-name" value="${esc(data.full_name || '')}"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Email</label>
+          <div style="font-size:13px;color:#475569;padding:8px 0">${esc(data.email || '-')}</div>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <div style="font-size:13px;color:#475569;padding:8px 0">${esc(data.phone || '-')}</div>
+        </div>
+      </div>
+      <p style="font-size:11px;color:#94a3b8;margin:-4px 0 8px">
+        Email and phone live on the login and cannot be changed from here.
+      </p>
+      ${isTech ? `
+        <div class="form-group">
+          <label>Business</label>
+          <select id="eu-biz" style="width:100%">
+            <option value="">— none —</option>
+            ${(bizs || []).map(b => `<option value="${b.id}" ${tech?.business_id === b.id ? 'selected' : ''}>${esc(b.business_name)}</option>`).join('')}
+          </select>
+        </div>
+      ` : ''}
+      <div class="modal-actions">
+        <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeEditUserModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveUser('${id}','${isTech}')">Save Changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeEditUserModal(); });
+};
+
+window.closeEditUserModal = function() {
+  const m = document.getElementById('edituser-modal');
+  if (m) m.remove();
+};
+
+window.saveUser = async function(id, isTech) {
+  const btn = document.querySelector('#edituser-modal .btn-primary');
+  const name = document.getElementById('eu-name').value.trim();
+  if (!name) { toast('Name is required'); return; }
+
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const { error } = await _supabase.from('profiles').update({ full_name: name }).eq('id', id);
+    if (error) throw error;
+
+    if (isTech) {
+      const bizId = document.getElementById('eu-biz').value;
+      if (bizId) {
+        const { error: tErr } = await _supabase.from('technicians').update({ business_id: bizId }).eq('id', id);
+        if (tErr) throw tErr;
+      }
+    }
+    toast('User updated');
+    closeEditUserModal();
+    loadPage('users');
+  } catch (e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Save Changes';
+  }
+};
+
+// Remove is destructive and cascades into the user's jobs, quotes, invoices
+// and messages, so it goes through an edge function that reports the blast
+// radius and requires the name typed back.
+window.removeUser = async function(id) {
+  let preview;
+  try {
+    const { data, error } = await _supabase.functions.invoke('admin-manage-user', {
+      body: { userId: id, action: 'preview' },
+    });
+    if (error) throw new Error(error.message);
+    preview = data;
+  } catch (e) {
+    toast('Cannot check impact: ' + e.message, 6000);
+    return;
+  }
+
+  const rows = Object.entries(preview.impacts || {});
+  const impactHtml = rows.length
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:14px">
+         <strong style="color:#991b1b;font-size:13px">This permanently deletes:</strong>
+         <ul style="margin:6px 0 0;padding-left:18px;font-size:12px;color:#991b1b">
+           ${rows.map(([t, n]) => `<li>${esc(t.replace(/_/g, ' '))}: <strong>${n}</strong></li>`).join('')}
+         </ul>
+       </div>`
+    : `<p style="font-size:12px;color:#64748b">No jobs, quotes, invoices or messages are linked to this account.</p>`;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'removeuser-modal';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Remove ${esc(preview.role || 'user')}?</h2>
+      <p style="font-size:13px;color:#475569">
+        <strong>${esc(preview.name)}</strong> will be deleted along with their login.
+        Their name is kept on any job or invoice that is not deleted with it.
+      </p>
+      ${impactHtml}
+      <div class="form-group">
+        <label>Type <strong>${esc(preview.name)}</strong> to confirm</label>
+        <input id="ru-confirm" placeholder="${esc(preview.name)}" autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeRemoveUserModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmRemoveUser('${id}')">Remove permanently</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeRemoveUserModal(); });
+};
+
+window.closeRemoveUserModal = function() {
+  const m = document.getElementById('removeuser-modal');
+  if (m) m.remove();
+};
+
+window.confirmRemoveUser = async function(id) {
+  const typed = document.getElementById('ru-confirm').value.trim();
+  const btn = document.querySelector('#removeuser-modal .btn-danger');
+  if (!typed) { toast('Type the name to confirm'); return; }
+
+  btn.disabled = true; btn.textContent = 'Removing...';
+  try {
+    const { data, error } = await _supabase.functions.invoke('admin-manage-user', {
+      body: { userId: id, action: 'delete', confirmName: typed },
+    });
+    if (error) throw new Error(error.message);
+    toast('User removed');
+    closeRemoveUserModal();
+    loadPage('users');
+  } catch (e) {
+    toast('Error: ' + e.message, 6000);
+    btn.disabled = false; btn.textContent = 'Remove permanently';
+  }
+};
+
 
 // ── Businesses ──
 async function loadBusinesses(el) {

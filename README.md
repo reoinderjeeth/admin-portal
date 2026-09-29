@@ -29,8 +29,9 @@ Sign in with an admin account (email + password). The portal checks the `role` f
 Two migrations are required. Both are idempotent (safe to re-run).
 
 ```
-supabase/migrations/037_admin_read_all.sql
-supabase/migrations/038_admin_row_counts.sql
+  supabase/migrations/037_admin_read_all.sql
+  supabase/migrations/038_admin_row_counts.sql
+  supabase/migrations/039_admin_user_management.sql
 ```
 
 Run them once in the **Supabase dashboard → SQL Editor**.
@@ -51,40 +52,76 @@ reasons a page can look empty:
 
 If 038 is missing, the Dashboard shows a notice saying so instead of guessing.
 
-## Required edge function
+**039** adds `profiles.is_active` plus a trigger that blocks new sign-ins for
+deactivated accounts. It is required for the *Deactivate* button on the Users
+page.
+
+## Required edge functions
 
 ```
 supabase/functions/add-business/index.ts
+supabase/functions/admin-manage-user/index.ts
 ```
 
 Deploy once with the Supabase CLI:
 
 ```
 supabase functions deploy add-business
+supabase functions deploy admin-manage-user
 ```
 
-**Why it exists.** `business_profiles.id` is a primary key that references
+**`add-business`.** `business_profiles.id` is a primary key that references
 `profiles.id`, which in turn references `auth.users.id`. A business therefore
 cannot exist without a real login behind it, and creating that login requires
 the service role key. That key must never be shipped to the browser, so the
 portal's *Add Business* button calls this edge function instead of writing to
 the database directly.
 
-The function checks the caller's profile role is `admin`, generates a random
-password, and creates the auth user, the `profiles` row (`role = 'business'`)
-and the `business_profiles` row. It rejects duplicate business names and
-emails before creating anything, and rolls back the auth user if a later step
-fails, so it cannot leave a half-created account behind.
+**`admin-manage-user`.** Handles the *Remove User* action. Deleting a
+`profiles` row from the browser would leave the auth user alive but
+profileless — they could still sign in and land with no account. This function
+deletes the auth user instead, which cascades correctly.
 
-Until it is deployed, the *Add Business* button reports that the function is
-missing rather than failing with a raw error.
+It also refuses to act on the calling admin's own account, and requires the
+user's name typed back before deleting.
+
+### Removing a user destroys their history
+
+Every table below references `profiles(id) ON DELETE CASCADE`, so removing a
+user permanently deletes their jobs, quotes, invoices, messages, calls,
+reviews, addresses and notifications. Before deleting, the portal calls the
+function in `preview` mode, which returns the row counts, and shows them in
+the confirmation dialog.
+
+**Deactivate instead** unless you are certain. Deactivation keeps the rows, so
+past jobs and invoices still show the person's name, and they can be
+reactivated later.
+
+## Users
+
+Customers and Technicians are separate tabs, because they are governed
+differently: a technician belongs to a business and is switched off through
+`technicians.is_active`, while a customer has no such row.
+
+| Action | Effect |
+| --- | --- |
+| Edit | Change full name. For technicians, reassign their business |
+| Deactivate | Block sign-in, keep all history, reversible |
+| Remove | Delete the login and cascade to their data. Not reversible |
+
+Email and phone are stored on the auth login and are shown read-only in the
+edit dialog. Changing them means going through Supabase Auth.
+
+Deactivation requires migration `039`, which adds `profiles.is_active` and a
+trigger that blocks new sign-ins for deactivated accounts. Until it is
+applied, the *Deactivate* button will fail.
 
 ## Pages
 
 | Page | Contents |
 | --- | --- |
 | Dashboard | Headline counts plus a **Data Access Check** diagnostic table |
-| Users | All profiles with role badges |
+| Users | Customers and Technicians in separate tabs, with edit, deactivate and remove |
 | Businesses | Verification queue, logos, media counts, plus **Add Business** to provision a new business and its owner login |
 | Jobs | All jobs with a **View** button opening a per-job detail modal |
 | Messages | Every chat transcript, grouped per job, with search + job filter |
