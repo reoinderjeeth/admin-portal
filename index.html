@@ -396,9 +396,9 @@ tr:hover td { background: #f8fafc; }
   .modal-overlay { position: static !important; background: #fff !important; padding: 0 !important; }
   .modal { max-width: 100% !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; }
   .doc { border: none; padding: 0; }
-  /* Quote and job modals print as documents too. */
-  #job-modal .modal-tabs, #job-modal .pane { display: none !important; }
-  #job-modal #pane-overview { display: block !important; }
+  /* Job and quote modals print as documents only. */
+  #job-modal .modal-tabs, #job-modal .pane, #quote-modal .modal-tabs, #quote-modal .pane { display: none !important; }
+  #job-modal #pane-overview, #quote-modal #quote-pane-doc { display: block !important; }
 }
 
 /* ── Responsive ── */
@@ -429,6 +429,113 @@ const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
 const BUILD = 'f16bfac+inv038';
+
+// Loads every trace of client <-> installer communication for a job.
+// NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
+// quote_id column, so a quote can only be traced through its linked job.
+async function loadCommunication(jobId, parties) {
+  if (!jobId) return { messages: [], calls: [], notifications: [], linked: false };
+  const [m, c] = await Promise.all([
+    _supabase.from('messages').select('*').eq('job_id', jobId).order('created_at'),
+    _supabase.from('calls').select('*').eq('job_id', jobId).order('created_at'),
+  ]);
+  let notifications = [];
+  try {
+    // Notifications reference the job/quote only inside their JSONB payload.
+    const { data } = await _supabase.from('notifications').select('*')
+      .order('created_at', { ascending: false }).limit(500);
+    notifications = (data || []).filter(n => n.data && n.data.job_id === jobId);
+  } catch (_) { /* notifications are optional context */ }
+  return { messages: m.data || [], calls: c.data || [], notifications, linked: true };
+}
+
+function roleBadge(party) {
+  if (!party) return '';
+  const r = party.role || 'customer';
+  return `<span class="badge ${ROLE_CLASS[r] || 'badge-gray'}">${ROLE_LABEL[r] || r}</span>`;
+}
+
+// Renders the full communication history for a job.
+function renderCommunication(comm, parties, opts) {
+  opts = opts || {};
+  if (!comm.linked) {
+    return `<div class="empty" style="box-shadow:none;background:#f8fafc">
+      <div style="font-size:30px;margin-bottom:10px">🔗</div>
+      <strong style="display:block;margin-bottom:6px">Not linked to a job</strong>
+      <span style="display:block;max-width:430px;margin:0 auto">
+        This quote has no linked job, and chat messages and calls are recorded
+        against a job rather than a quote — so there is no communication
+        history to show.
+      </span>
+    </div>`;
+  }
+
+  const M = comm.messages, C = comm.calls, N = comm.notifications;
+  if (!M.length && !C.length && !N.length) {
+    return `<div class="empty" style="box-shadow:none;background:#f8fafc">
+      <div style="font-size:30px;margin-bottom:10px">💬</div>
+      <strong>No communication recorded for this job</strong>
+      <span style="display:block;margin-top:6px">No messages, calls or notifications were logged.</span>
+    </div>`;
+  }
+
+  return `
+    ${M.length ? `
+      <div class="sub-head">Text messages (${M.length})</div>
+      <div class="chat-thread" style="box-shadow:none;border:1px solid #e2e8f0">
+        ${M.map(m => {
+          const p = parties[m.sender_id];
+          const mine = m.sender_id === (opts.viewerId || null);
+          return `<div class="chat-msg ${mine ? 'mine' : ''}">
+            <div>
+              <div class="chat-bubble">${esc(m.content)}</div>
+              <div class="chat-meta">
+                <span><strong>${esc(p?.name || 'Unknown')}</strong></span>
+                ${roleBadge(p)}
+                <span>${fmtDateTime(m.created_at)}</span>
+                <span>${m.read_at ? 'read' : 'unread'}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : ''}
+
+    ${C.length ? `
+      <div class="sub-head">Voice &amp; video calls (${C.length})</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Caller</th><th>Callee</th><th>Status</th><th>Duration</th><th>Channel</th><th>Started</th></tr></thead>
+        <tbody>${C.map(c => {
+          const cp = parties[c.caller_id], lp = parties[c.callee_id];
+          return `<tr>
+            <td><strong>${esc(c.caller_name || cp?.name || '—')}</strong> ${roleBadge(cp)}</td>
+            <td>${esc(lp?.name || '—')} ${roleBadge(lp)}</td>
+            <td><span class="badge ${c.status === 'ended' ? 'badge-green' : c.status === 'ongoing' ? 'badge-blue' : c.status === 'missed' ? 'badge-red' : 'badge-gray'}">${esc(c.status)}</span></td>
+            <td>${fmtDuration(callDuration(c))}</td>
+            <td><code style="font-size:11px;color:#64748b">${esc(c.channel_name || '—')}</code></td>
+            <td>${fmtDateTime(c.started_at || c.created_at)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+      <p style="font-size:11px;color:#94a3b8;margin-top:6px">
+        Only the call log is stored — no audio or video is recorded.
+      </p>` : ''}
+
+    ${N.length ? `
+      <div class="sub-head">Notifications sent (${N.length})</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Type</th><th>Title</th><th>Body</th><th>To</th><th>Sent</th></tr></thead>
+        <tbody>${N.map(n => {
+          const p = parties[n.user_id];
+          return `<tr>
+            <td><span class="badge badge-purple">${esc(n.type || 'info')}</span></td>
+            <td><strong>${esc(n.title || '—')}</strong></td>
+            <td>${esc(n.body || '—')}</td>
+            <td>${esc(p?.name || '—')} ${roleBadge(p)}</td>
+            <td>${fmtDateTime(n.created_at)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>` : ''}`;
+}
 
 let state = { session: null, route: 'dashboard' };
 
@@ -571,6 +678,21 @@ async function fetchNameMap() {
   (data || []).forEach(p => { map[p.id] = p.full_name || 'Unknown'; });
   return map;
 }
+
+// Same, but keeps the role so chat can distinguish client from installer.
+async function fetchPartyMap() {
+  const { data } = await _supabase.from('profiles').select('id, full_name, role');
+  const map = {};
+  (data || []).forEach(p => { map[p.id] = { name: p.full_name || 'Unknown', role: p.role || 'customer' }; });
+  return map;
+}
+
+const ROLE_LABEL = {
+  customer: 'Client', technician: 'Installer', business: 'Business', admin: 'Admin',
+};
+const ROLE_CLASS = {
+  customer: 'badge-blue', technician: 'badge-orange', business: 'badge-purple', admin: 'badge-gray',
+};
 
 async function fetchJobNameMap() {
   const { data } = await _supabase.from('jobs').select('id, reference_number, description');
@@ -994,9 +1116,9 @@ window.viewJob = async function(jobId) {
   overlay.addEventListener('click', e => { if (e.target === overlay) closeJobModal(); });
 
   try {
-    const [jobRes, names] = await Promise.all([
+    const [jobRes, parties] = await Promise.all([
       _supabase.from('jobs').select('*').eq('id', jobId).single(),
-      fetchNameMap(),
+      fetchPartyMap(),
     ]);
     const job = jobRes.data;
     if (!job) { overlay.querySelector('.modal').innerHTML = '<h2>Job not found</h2>'; return; }
@@ -1007,6 +1129,17 @@ window.viewJob = async function(jobId) {
       _supabase.from('invoices').select('*').eq('job_id', jobId).order('created_at'),
       _supabase.from('calls').select('*').eq('job_id', jobId).order('created_at'),
     ]);
+    const names = {};
+    Object.keys(parties).forEach(k => { names[k] = parties[k].name; });
+
+    // Full client <-> installer history for the tab
+    let notifications = [];
+    try {
+      const { data: nd } = await _supabase.from('notifications').select('*')
+        .order('created_at', { ascending: false }).limit(500);
+      notifications = (nd || []).filter(n => n.data && n.data.job_id === jobId);
+    } catch (_) { /* optional */ }
+    const comm = { messages: msgs.data || [], calls: calls.data || [], notifications, linked: true };
 
     const M = msgs.data || [], Q = quotes.data || [], I = invoices.data || [], C = calls.data || [];
     const thumbs = (job.images || []).map(u =>
@@ -1021,6 +1154,7 @@ window.viewJob = async function(jobId) {
         <button onclick="jobTab(this,'pane-invoices')">Invoices (${I.length})</button>
         <button onclick="jobTab(this,'pane-calls')">Calls (${C.length})</button>
         <button onclick="jobTab(this,'pane-media')">Images (${(job.images || []).length})</button>
+        <button onclick="jobTab(this,'pane-comm')">All Communication (${comm.messages.length + comm.calls.length + comm.notifications.length})</button>
       </div>
 
       <div class="pane" id="pane-overview">
@@ -1088,9 +1222,14 @@ window.viewJob = async function(jobId) {
         </table></div>` : '<div class="empty">No calls on this job</div>'}
       </div>
 
-      <div class="pane" id="pane-media" style="display:none">
-        ${(job.images || []).length ? `<div class="thumbs">${thumbs}</div>` : '<div class="empty">No photos on this job</div>'}
-      </div>
+        <div class="pane" id="pane-media" style="display:none">
+          ${(job.images || []).length ? `<div class="thumbs">${thumbs}</div>` : '<div class="empty">No photos on this job</div>'}
+        </div>
+
+        <div class="pane" id="pane-comm" style="display:none">
+          ${renderCommunication(comm, parties, { viewerId: state.session?.user?.id })}
+        </div>
+
 
       <div class="modal-actions">
         <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeJobModal()">Close</button>
@@ -1144,9 +1283,9 @@ window.viewQuote = async function(id) {
   overlay.addEventListener('click', e => { if (e.target === overlay) closeQuoteModal(); });
 
   try {
-    const [qRes, names] = await Promise.all([
+    const [qRes, parties] = await Promise.all([
       _supabase.from('quotes').select('*').eq('id', id).single(),
-      fetchNameMap(),
+      fetchPartyMap(),
     ]);
     const q = qRes.data;
     if (!q) { overlay.querySelector('.modal').innerHTML = '<h2>Quote not found</h2>'; return; }
@@ -1161,11 +1300,15 @@ window.viewQuote = async function(id) {
       if (j) { jobRef = j.reference_number || ''; jobStatus = j.status || ''; }
     }
 
+    // Messages and calls hang off the job, so trace through q.job_id.
+    const comm = await loadCommunication(q.job_id, parties);
+
     const items = Array.isArray(q.items) ? q.items : [];
     const images = Array.isArray(q.images) ? q.images.filter(Boolean) : [];
     const logo = biz?.logo_url || (biz?.logo_path ? publicUrl(biz.logo_path) : null);
-    const customerName = names[q.customer_id] || '—';
-    const techName = q.technician_id ? (names[q.technician_id] || '—') : null;
+    const customerName = parties[q.customer_id]?.name || '—';
+    const techName = q.technician_id ? (parties[q.technician_id]?.name || '—') : null;
+    const commCount = comm.messages.length + comm.calls.length + comm.notifications.length;
 
     const itemRows = items.map(m => `<tr>
       <td>${esc(m.description || '')}</td>
@@ -1192,6 +1335,12 @@ window.viewQuote = async function(id) {
     const expired = q.valid_until && new Date(q.valid_until) < new Date();
 
     overlay.querySelector('.modal').innerHTML = `
+      <div class="modal-tabs">
+        <button class="active" onclick="quoteTab(this,'quote-pane-doc')">Quote Document</button>
+        <button onclick="quoteTab(this,'quote-pane-comm')">Communication (${commCount})</button>
+      </div>
+
+      <div class="pane" id="quote-pane-doc">
       <div class="doc" id="quote-doc">
         <div class="doc-head">
           <div>
@@ -1258,16 +1407,30 @@ window.viewQuote = async function(id) {
           ${meta.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join('')}
         </dl>
       </div>
+      </div>
+
+      <div class="pane" id="quote-pane-comm" style="display:none">
+        <div class="sub-head">Client ↔ Installer communication</div>
+        ${renderCommunication(comm, parties, { viewerId: state.session?.user?.id })}
+      </div>
+
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="printQuote()">🖨️ Print</button>
         <button class="btn btn-primary" onclick="downloadQuotePDF()">⬇️ Download PDF</button>
         <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeQuoteModal()">Close</button>
       </div>`;
 
-    _quote = { q, biz, jobRef, logo, items, images, customerName, techName };
+    _quote = { q, biz, jobRef, logo, items, images, customerName, techName, comm, parties };
   } catch (e) {
     overlay.querySelector('.modal').innerHTML = `<h2>Error</h2><p style="color:#dc2626;font-size:13px">${esc(e.message)}</p>`;
   }
+};
+
+window.quoteTab = function(btn, paneId) {
+  btn.closest('.modal').querySelectorAll('.pane').forEach(p => { p.style.display = 'none'; });
+  document.querySelectorAll('.modal-tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(paneId).style.display = '';
 };
 
 window.closeQuoteModal = function() {
