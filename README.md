@@ -24,38 +24,45 @@ Upload just `index.html` to any static host — Netlify, Vercel, or even Supabas
 
 Sign in with an admin account (email + password). The portal checks the `role` field in `profiles` table — only users with `role = 'admin'` can access.
 
-## Required database migration
+## Required database migrations
 
-The **Messages**, **Calls** and **Notifications** pages read tables that are
-restricted to their own participants by row-level security. Admins have no
-read access to them until this migration is applied:
+Two migrations are required. Both are idempotent (safe to re-run).
 
 ```
 supabase/migrations/037_admin_read_all.sql
+supabase/migrations/038_admin_row_counts.sql
 ```
 
-Run it once in the **Supabase dashboard → SQL Editor**. It is idempotent
-(safe to re-run) and adds:
+Run them once in the **Supabase dashboard → SQL Editor**.
 
-- `SELECT` policies for admins on `messages`, `calls`, `notifications`, `device_tokens`
-- the missing `calls.caller_name` and `calls.call_type` columns
-- supporting indexes for the admin listings
+**037** grants admins `SELECT` on `messages`, `calls`, `notifications` and
+`device_tokens`, which are otherwise restricted to their own participants, and
+adds the `calls.caller_name` / `calls.call_type` columns.
 
-If the migration has not been applied, those pages show a "run migration
-037" notice instead of silently appearing empty.
+**038** adds `admin_row_counts()`, a `SECURITY DEFINER` function that returns
+true row counts while bypassing RLS. The portal uses it to tell apart the three
+reasons a page can look empty:
+
+| In database | Visible | Meaning |
+| --- | --- | --- |
+| 0 | 0 | Genuinely no data yet |
+| > 0 | 0 | RLS is hiding the rows — re-run 037 and sign out/in |
+| > 0 | = total | Working correctly |
+
+If 038 is missing, the Dashboard shows a notice saying so instead of guessing.
 
 ## Pages
 
 | Page | Contents |
 | --- | --- |
-| Dashboard | Headline counts incl. messages, calls, missed calls, average rating, revenue |
+| Dashboard | Headline counts plus a **Data Access Check** diagnostic table |
 | Users | All profiles with role badges |
 | Businesses | Verification queue, logos, media counts |
 | Jobs | All jobs with a **View** button opening a per-job detail modal |
 | Messages | Every chat transcript, grouped per job, with search + job filter |
 | Images | All job photos, quote photos, business logos, galleries and certificates |
 | Quotes | All quotes with totals and photo counts |
-| Invoices | All invoices with tax, total and paid state |
+| Invoices | All invoices with a **View** button: full invoice document, print, and PDF download |
 | Calls | Call history with talk-time summary and per-call duration |
 | Reviews | Ratings and written feedback |
 | Notifications | Full notification log with recipient and read state |
@@ -63,3 +70,13 @@ If the migration has not been applied, those pages show a "run migration
 
 The **View** modal on a job is the fastest way to audit one job end to end:
 overview, messages, quotes, invoices, calls and photos in separate tabs.
+
+Invoices render as a real document (logo, parties, line items, serial numbers,
+VAT, PAID stamp) and can be downloaded as a PDF or printed. PDFs are generated
+client-side with jsPDF, so no server round-trip is involved.
+
+## Caching
+
+GitHub Pages can serve a stale copy after a push. The build hash is shown at the
+bottom of the sidebar. If a page is missing new features, hard-reload with
+**Ctrl+Shift+R** and confirm the build hash matches the latest commit.

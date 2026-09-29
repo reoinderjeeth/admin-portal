@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -363,6 +364,40 @@ tr:hover td { background: #f8fafc; }
 .thumbs img:hover { border-color: #f97316; }
 .stars { color: #f59e0b; letter-spacing: 1px; }
 
+/* ── Invoice document ── */
+.doc {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  padding: 32px; color: #0f172a; max-width: 720px; margin: 0 auto;
+}
+.doc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 20px; border-bottom: 2px solid #0a1929; flex-wrap: wrap; }
+.doc-head .brand-name { font-size: 24px; font-weight: 800; color: #0a1929; letter-spacing: -.5px; }
+.doc-head .doc-title { font-size: 15px; font-weight: 800; color: #f97316; letter-spacing: 3px; }
+.doc-parties { display: flex; gap: 32px; flex-wrap: wrap; margin: 22px 0; }
+.doc-parties > div { flex: 1; min-width: 190px; }
+.doc-parties h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 7px; }
+.doc-parties .nm { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.doc-parties .ln { font-size: 12px; color: #64748b; line-height: 1.6; }
+.doc table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.doc table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: #94a3b8; padding: 9px 8px; border-bottom: 2px solid #e2e8f0; }
+.doc table td { padding: 11px 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.doc table td.num, .doc table th.num { text-align: right; white-space: nowrap; }
+.doc-totals { margin-top: 20px; margin-left: auto; max-width: 280px; }
+.doc-totals .row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 13px; color: #64748b; }
+.doc-totals .row.grand { border-top: 2px solid #0a1929; margin-top: 6px; padding-top: 12px; font-size: 17px; font-weight: 800; color: #0a1929; }
+.doc-stamp { display: inline-block; margin-top: 18px; padding: 7px 18px; border: 3px solid #16a34a; border-radius: 8px; color: #16a34a; font-weight: 800; font-size: 14px; letter-spacing: 2px; transform: rotate(-4deg); }
+.doc-stamp.unpaid { border-color: #ea580c; color: #ea580c; }
+.doc-note { margin-top: 20px; padding: 13px 16px; background: #f8fafc; border-radius: 8px; font-size: 12px; color: #475569; line-height: 1.6; }
+.doc-serial { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+/* Print: strip the app chrome so the browser's Save-as-PDF yields a clean invoice. */
+@media print {
+  .sidebar, .topbar, .modal-actions, .toast, .lightbox { display: none !important; }
+  body, .content, .main, .app { background: #fff !important; padding: 0 !important; overflow: visible !important; }
+  .modal-overlay { position: static !important; background: #fff !important; padding: 0 !important; }
+  .modal { max-width: 100% !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; }
+  .doc { border: none; padding: 0; }
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .sidebar { width: 64px; }
@@ -388,6 +423,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Bump when shipping so a cached copy is obvious instead of confusing.
+const BUILD = 'f16bfac+inv038';
 
 let state = { session: null, route: 'dashboard' };
 
@@ -538,6 +576,14 @@ async function fetchJobNameMap() {
   return map;
 }
 
+// SECURITY DEFINER: returns TRUE row counts, bypassing RLS.
+// Lets the dashboard tell "no data yet" apart from "RLS is hiding it".
+async function fetchTrueCounts() {
+  const { data, error } = await _supabase.rpc('admin_row_counts');
+  if (error) return null;
+  return data;
+}
+
 // ── Render ──
 function render() {
   const app = document.getElementById('app');
@@ -601,6 +647,7 @@ function renderShell() {
         </nav>
         <div class="sidebar-footer">
           <button onclick="logout()"><span>🚪</span><span>Sign Out — ${user?.email || ''}</span></button>
+          <div style="padding:10px 14px;font-size:10px;color:#475569;opacity:.7;text-align:center">build ${BUILD}</div>
         </div>
       </div>
       <div class="main">
@@ -673,8 +720,85 @@ async function loadDashboard(el) {
           <span class="count" style="color:#9e9e9e">${stats.totalBusinesses - stats.verifiedBusinesses - stats.pendingVerifications}</span>
         </div>
       </div>
+      <div class="card" id="diag-card" style="display:none">
+        <h2>Data Access Check</h2>
+        <div id="diag-body"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
     `;
+    runDiagnostics(el);
   } catch (e) { el.innerHTML = `<div class="empty">Error loading stats: ${e.message}</div>`; }
+}
+
+// Explains WHY a page is empty: no data at all, rows hidden by RLS,
+// or a migration that was never applied.
+async function runDiagnostics(el) {
+  const card = document.getElementById('diag-card');
+  const body = document.getElementById('diag-body');
+  if (!card) return;
+  card.style.display = '';
+
+  const watched = ['messages', 'calls', 'notifications', 'invoices', 'quotes', 'jobs'];
+  const trueCounts = await fetchTrueCounts();
+
+  if (!trueCounts) {
+    body.innerHTML = `<div style="font-size:13px;color:#475569;line-height:1.7">
+      <strong style="color:#dc2626">Diagnostic unavailable.</strong> The
+      <code>admin_row_counts()</code> function is not installed, so
+      <code>supabase/migrations/038_admin_row_counts.sql</code> has not been run yet.<br><br>
+      Until it is, this panel cannot tell apart "no data yet" from "permissions are hiding data".
+    </div>`;
+    return;
+  }
+
+  // What the browser can actually see right now, per table.
+  const [m, c, n, inv, q, j] = await Promise.all([
+    _supabase.from('messages').select('id'),
+    _supabase.from('calls').select('id'),
+    _supabase.from('notifications').select('id'),
+    _supabase.from('invoices').select('id'),
+    _supabase.from('quotes').select('id'),
+    _supabase.from('jobs').select('id'),
+  ]);
+  const visible = {
+    messages: (m.data || []).length, calls: (c.data || []).length,
+    notifications: (n.data || []).length, invoices: (inv.data || []).length,
+    quotes: (q.data || []).length, jobs: (j.data || []).length,
+  };
+
+  const rows = watched.map(t => {
+    const truth = trueCounts[t] || 0;
+    const seen = visible[t];
+    let verdict, color;
+    if (truth === 0) { verdict = 'no data yet'; color = '#94a3b8'; }
+    else if (seen < truth) { verdict = `${seen} of ${truth} visible — RLS is hiding ${truth - seen}`; color = '#dc2626'; }
+    else { verdict = `${truth} row${truth === 1 ? '' : 's'}`; color = '#2e7d32'; }
+    return `<tr>
+      <td><strong>${t}</strong></td>
+      <td>${truth}</td>
+      <td>${seen}</td>
+      <td><span class="badge" style="background:${color}22;color:${color}">${verdict}</span></td>
+    </tr>`;
+  }).join('');
+
+  const hidden = watched.some(t => {
+    const truth = trueCounts[t] || 0;
+    return truth > 0 && visible[t] < truth;
+  });
+
+  body.innerHTML = `
+    <p style="font-size:12px;color:#64748b;margin-bottom:12px">
+      "In database" is the true row count (bypasses RLS). "Visible" is what this
+      browser can actually read right now. A gap means a row-level security policy is blocking it.
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Table</th><th>In database</th><th>Visible</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    ${hidden ? `<div style="margin-top:14px;padding:12px 14px;background:#fef2f2;border-radius:8px;font-size:12px;color:#991b1b">
+      <strong>Rows are being hidden.</strong> Re-run <code>037_admin_read_all.sql</code> in the
+      Supabase SQL editor, then sign out and back in so the new policy applies to your session.
+    </div>` : ''}
+    <div style="margin-top:12px;font-size:11px;color:#94a3b8">Page build: <code>${BUILD}</code> — if this looks out of date, hard-reload with Ctrl+Shift+R.</div>`;
 }
 
 // ── Users ──
@@ -1011,26 +1135,314 @@ async function loadInvoices(el) {
     const invoices = await fetchInvoices();
     if (!invoices.length) { el.innerHTML = '<div class="empty">No invoices found</div>'; return; }
     el.innerHTML = `<div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Invoice #</th><th>Customer</th><th>Total</th><th>Status</th><th>Paid At</th><th>Created</th></tr></thead>
+      <thead><tr><th>Invoice #</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Paid At</th><th>Created</th><th></th></tr></thead>
       <tbody>${invoices.map(inv => `<tr>
         <td><strong>${esc(inv.invoice_number || '—')}</strong></td>
         <td>${esc(inv.profiles?.full_name || '—')}</td>
+        <td>${(inv.items || []).length}</td>
         <td><strong>R${(inv.total || 0).toFixed(2)}</strong></td>
         <td><span class="badge ${inv.status === 'paid' ? 'badge-green' : inv.status === 'issued' ? 'badge-blue' : inv.status === 'cancelled' ? 'badge-red' : 'badge-gray'}">${esc(inv.status)}</span></td>
         <td>${inv.paid_at ? fmtDate(inv.paid_at) : '—'}</td>
         <td>${fmtDate(inv.created_at)}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="viewInvoice('${inv.id}')">View</button></td>
       </tr>`).join('')}</tbody>
     </table></div></div>`;
   } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
 
+let _invoice = null;
+
+window.viewInvoice = async function(id) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'inv-modal';
+  overlay.innerHTML = `<div class="modal wide"><div class="loading"><div class="spinner"></div></div></div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeInvoiceModal(); });
+
+  try {
+    const [invRes, names] = await Promise.all([
+      _supabase.from('invoices').select('*').eq('id', id).single(),
+      fetchNameMap(),
+    ]);
+    const inv = invRes.data;
+    if (!inv) { overlay.querySelector('.modal').innerHTML = '<h2>Invoice not found</h2>'; return; }
+
+    const biz = inv.business_id
+      ? (await _supabase.from('business_profiles').select('*').eq('id', inv.business_id).maybeSingle()).data
+      : null;
+
+    let jobRef = '';
+    if (inv.job_id) {
+      const j = (await _supabase.from('jobs').select('reference_number').eq('id', inv.job_id).maybeSingle()).data;
+      jobRef = j?.reference_number || '';
+    }
+
+    const items = Array.isArray(inv.items) ? inv.items : [];
+    const serials = Array.isArray(inv.serial_numbers) ? inv.serial_numbers : [];
+    const logo = biz?.logo_url || (biz?.logo_path ? publicUrl(biz.logo_path) : null);
+    const paid = inv.status === 'paid';
+
+    const itemRows = items.map((m, idx) => {
+      const s = serials[idx];
+      return `<tr>
+        <td>
+          ${esc(m.description || '')}
+          ${s && s.serial_number ? `<div class="doc-serial">S/N: ${esc(s.serial_number)}</div>` : ''}
+        </td>
+        <td class="num">${m.quantity ?? 1}</td>
+        <td class="num">R${Number(m.unit_price || 0).toFixed(2)}</td>
+        <td class="num"><strong>R${Number(m.total || 0).toFixed(2)}</strong></td>
+      </tr>`;
+    }).join('');
+
+    overlay.querySelector('.modal').innerHTML = `
+      <div class="doc" id="inv-doc">
+        <div class="doc-head">
+          <div>
+            ${logo ? `<img src="${esc(logo)}" style="width:52px;height:52px;border-radius:10px;object-fit:cover;margin-bottom:10px" onerror="this.style.display='none'">` : ''}
+            <div class="brand-name">FixerBud</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px">Maintenance &amp; Repairs</div>
+          </div>
+          <div style="text-align:right">
+            <div class="doc-title">INVOICE</div>
+            <div style="font-size:14px;font-weight:700;margin-top:6px">${esc(inv.invoice_number || '—')}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:3px">Issued ${fmtDate(inv.created_at)}</div>
+            ${jobRef ? `<div style="font-size:11px;color:#64748b;margin-top:3px">Job ${esc(jobRef)}</div>` : ''}
+          </div>
+        </div>
+
+        <div class="doc-parties">
+          <div>
+            <h4>From</h4>
+            <div class="nm">${esc(biz?.business_name || 'FixerBud')}</div>
+            <div class="ln">
+              ${biz?.business_phone ? `Tel: ${esc(biz.business_phone)}<br>` : ''}
+              ${biz?.suburb ? `${esc(biz.suburb)}<br>` : ''}
+              ${biz?.description ? esc(biz.description) : ''}
+            </div>
+          </div>
+          <div>
+            <h4>Bill To</h4>
+            <div class="nm">${esc(names[inv.customer_id] || '—')}</div>
+            <div class="ln">Customer</div>
+            ${inv.technician_id ? `<div class="ln" style="margin-top:8px"><strong>Serviced by:</strong> ${esc(names[inv.technician_id] || '—')}</div>` : ''}
+          </div>
+        </div>
+
+        <table>
+          <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit Price</th><th class="num">Total</th></tr></thead>
+          <tbody>${itemRows || '<tr><td colspan="4" style="color:#94a3b8">No line items</td></tr>'}</tbody>
+        </table>
+
+        <div class="doc-totals">
+          <div class="row"><span>Subtotal</span><span>R${(inv.subtotal || 0).toFixed(2)}</span></div>
+          <div class="row"><span>VAT (${((inv.tax_rate || 0) * 100).toFixed(0)}%)</span><span>R${(inv.tax_amount || 0).toFixed(2)}</span></div>
+          <div class="row grand"><span>Total</span><span>R${(inv.total || 0).toFixed(2)}</span></div>
+        </div>
+
+        <div class="doc-stamp ${paid ? '' : 'unpaid'}">${paid ? 'PAID' : (inv.status || 'draft').toUpperCase()}</div>
+        ${paid && inv.paid_at ? `<div style="font-size:11px;color:#94a3b8;margin-top:8px">Paid on ${fmtDate(inv.paid_at)}</div>` : ''}
+        ${inv.notes ? `<div class="doc-note"><strong>Notes:</strong> ${esc(inv.notes)}</div>` : ''}
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="printInvoice()">🖨️ Print</button>
+        <button class="btn btn-primary" onclick="downloadInvoicePDF()">⬇️ Download PDF</button>
+        <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeInvoiceModal()">Close</button>
+      </div>`;
+
+    // Cache what the PDF generator needs
+    _invoice = { inv, biz, jobRef, logo, items, serials };
+    window._invCustomerName = names[inv.customer_id] || 'Customer';
+    window._invTechName = names[inv.technician_id] || '—';
+  } catch (e) {
+    overlay.querySelector('.modal').innerHTML = `<h2>Error</h2><p style="color:#dc2626;font-size:13px">${esc(e.message)}</p>`;
+  }
+};
+
+window.closeInvoiceModal = function() {
+  const m = document.getElementById('inv-modal');
+  if (m) m.remove();
+  _invoice = null;
+};
+
+window.printInvoice = function() { window.print(); };
+
+window.downloadInvoicePDF = async function() {
+  if (!_invoice) return;
+  if (typeof window.jspdf === 'undefined') {
+    toast('PDF library failed to load — use Print instead');
+    return;
+  }
+  const btn = document.querySelector('#inv-modal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Building PDF...'; }
+
+  const { inv, biz, jobRef, logo, items, serials } = _invoice;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const M = 40;
+  const money = n => 'R' + Number(n || 0).toFixed(2);
+  let y = M;
+
+  // Logo (skip silently if CORS or fetch fails)
+  if (logo) {
+    try {
+      const img = await loadImageAsDataUrl(logo);
+      if (img) doc.addImage(img, 'PNG', W - M - 46, y, 46, 46);
+    } catch (_) { /* logo is optional */ }
+  }
+
+  doc.setFont('helvetica', 'bold').setFontSize(21).setTextColor(10, 25, 41);
+  doc.text('FixerBud', M, y + 15);
+  doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(148, 163, 184);
+  doc.text('Maintenance & Repairs', M, y + 28);
+
+  doc.setFont('helvetica', 'bold').setFontSize(13).setTextColor(249, 115, 22);
+  doc.text('INVOICE', W - M, y + 15, { align: 'right' });
+  doc.setFontSize(10).setTextColor(15, 23, 42);
+  doc.text(inv.invoice_number || '-', W - M, y + 32, { align: 'right' });
+  doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(148, 163, 184);
+  doc.text('Issued ' + fmtDate(inv.created_at), W - M, y + 44, { align: 'right' });
+  if (jobRef) doc.text('Job ' + jobRef, W - M, y + 55, { align: 'right' });
+
+  y += 74;
+  doc.setDrawColor(10, 25, 41).setLineWidth(1.5);
+  doc.line(M, y, W - M, y);
+  y += 22;
+
+  // Parties
+  const colW = (W - M * 2) / 2;
+  doc.setFont('helvetica', 'bold').setFontSize(7).setTextColor(148, 163, 184);
+  doc.text('FROM', M, y);
+  doc.text('BILL TO', M + colW, y);
+  y += 12;
+  doc.setFontSize(10).setTextColor(15, 23, 42);
+  doc.text(trunc(doc, biz?.business_name || 'FixerBud', colW - 20), M, y + 4);
+  doc.text(trunc(doc, window._invCustomerName || 'Customer', colW - 20), M + colW, y + 4);
+  y += 15;
+  doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(100, 116, 139);
+  const fromLines = [biz?.business_phone ? 'Tel: ' + biz.business_phone : '', biz?.suburb || '', biz?.description || ''].filter(Boolean);
+  fromLines.forEach(l => { doc.text(trunc(doc, l, colW - 20), M, y); y += 11; });
+  y += 4;
+  if (inv.technician_id) {
+    doc.setTextColor(15, 23, 42).text('Serviced by: ' + trunc(doc, window._invTechName || '-', colW - 60), M + colW, y);
+    y += 11;
+  }
+
+  y += 10;
+  // Table header
+  const cols = { desc: M, qty: W - M - 190, unit: W - M - 100, total: W - M };
+  doc.setFillColor(248, 250, 252);
+  doc.rect(M, y - 12, W - M * 2, 22, 'F');
+  doc.setFont('helvetica', 'bold').setFontSize(7).setTextColor(100, 116, 139);
+  doc.text('DESCRIPTION', cols.desc + 6, y + 2);
+  doc.text('QTY', cols.qty, y + 2, { align: 'right' });
+  doc.text('UNIT', cols.unit, y + 2, { align: 'right' });
+  doc.text('TOTAL', cols.total - 6, y + 2, { align: 'right' });
+  y += 18;
+
+  // Rows
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(15, 23, 42);
+  items.forEach((m, i) => {
+    if (y > 700) { doc.addPage(); y = M + 10; }
+    const s = serials[i];
+    const lines = doc.splitTextToSize(trunc(doc, m.description || '', 240), cols.qty - cols.desc - 30);
+    doc.text(lines, cols.desc + 6, y);
+    doc.text(String(m.quantity ?? 1), cols.qty, y, { align: 'right' });
+    doc.setTextColor(100, 116, 139);
+    doc.text(money(m.unit_price), cols.unit, y, { align: 'right' });
+    doc.setFont('helvetica', 'bold').setTextColor(15, 23, 42);
+    doc.text(money(m.total), cols.total - 6, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    let ry = y + (lines.length > 1 ? (lines.length - 1) * 11 : 0);
+    if (s && s.serial_number) {
+      doc.setFontSize(7).setTextColor(148, 163, 184);
+      doc.text('S/N: ' + s.serial_number, cols.desc + 6, ry + 10);
+      doc.setFontSize(9).setTextColor(15, 23, 42);
+      ry += 10;
+    }
+    y = ry + 16;
+    doc.setDrawColor(241, 245, 249).setLineWidth(0.5).line(M, y - 11, W - M, y - 11);
+  });
+
+  if (!items.length) {
+    doc.setTextColor(148, 163, 184).setFontSize(9).text('No line items', M + 6, y);
+    y += 20;
+  }
+
+  // Totals
+  y += 8;
+  if (y > 700) { doc.addPage(); y = M + 10; }
+  const tX = W - M - 190, tW = 190;
+  const tRow = (label, val, bold, rule) => {
+    doc.setFont('helvetica', bold ? 'bold' : 'normal').setFontSize(bold ? 12 : 9);
+    doc.setTextColor(...(bold ? [10, 25, 41] : [100, 116, 139]));
+    doc.text(label, tX, y);
+    doc.setFont('helvetica', 'bold').setTextColor(15, 23, 42);
+    doc.text(val, tX + tW, y, { align: 'right' });
+    y += bold ? 16 : 14;
+    if (rule) { doc.setDrawColor(10, 25, 41).setLineWidth(1).line(tX, y - 11, tX + tW, y - 11); y += 4; }
+  };
+  tRow('Subtotal', money(inv.subtotal));
+  tRow('VAT (' + ((inv.tax_rate || 0) * 100).toFixed(0) + '%)', money(inv.tax_amount));
+  tRow('Total', money(inv.total), true, true);
+
+  // Paid stamp
+  if (inv.status === 'paid') {
+    doc.setTextColor(22, 163, 74).setFont('helvetica', 'bold').setFontSize(14);
+    doc.text('PAID', tX, y + 12);
+    if (inv.paid_at) doc.setFont('helvetica', 'normal').setFontSize(7).setTextColor(148, 163, 184).text('on ' + fmtDate(inv.paid_at), tX, y + 24);
+  }
+
+  if (inv.notes) {
+    y += 40;
+    if (y > 720) { doc.addPage(); y = M; }
+    doc.setFontSize(8).setTextColor(100, 116, 139);
+    doc.text(doc.splitTextToSize('Notes: ' + inv.notes, W - M * 2), M, y);
+  }
+
+  doc.save(`${(inv.invoice_number || 'invoice').replace(/[^\w.-]/g, '_')}.pdf`);
+  if (btn) { btn.disabled = false; btn.textContent = '⬇️ Download PDF'; }
+  toast('Invoice downloaded');
+};
+
+function trunc(doc, text, maxW) {
+  let t = String(text || '');
+  while (t.length > 1 && doc.getTextWidth(t) > maxW) t = t.slice(0, -1);
+  return t === String(text || '') ? t : t + '…';
+}
+
+// Storage objects do not send CORS headers for canvas reads, so the logo is
+// best-effort: fall back to a text-only header if the fetch or draw fails.
+function loadImageAsDataUrl(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const done = v => resolve(v);
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        c.getContext('2d').drawImage(img, 0, 0);
+        done(c.toDataURL('image/png'));
+      } catch (_) { done(null); }
+    };
+    img.onerror = () => done(null);
+    setTimeout(() => done(null), 6000);
+    img.src = url;
+  });
+}
+
 // ── RLS hint ──
 // Admin read policies for messages / calls / notifications live in migration 037.
+// The Dashboard "Data Access Check" panel gives the definitive answer.
 function rlsHint(table) {
   return `<div class="empty">
-    <div style="font-size:34px;margin-bottom:10px">🔒</div>
-    <strong style="display:block;margin-bottom:6px">No ${esc(table)} visible</strong>
-    <span style="display:block;max-width:440px;margin:0 auto 14px">Admins can only read these rows after the admin read policy is applied. Run <code>supabase/migrations/037_admin_read_all.sql</code> in the Supabase SQL editor, then reload.</span>
+    <div style="font-size:34px;margin-bottom:10px">🔍</div>
+    <strong style="display:block;margin-bottom:6px">No ${esc(table)} rows visible</strong>
+    <span style="display:block;max-width:460px;margin:0 auto 14px">This is either genuinely empty, or row-level security is hiding the rows. Open the <strong>Dashboard → Data Access Check</strong> panel for the exact cause.</span>
+    <a href="#dashboard" class="btn btn-sm btn-primary">Go to Data Access Check</a>
   </div>`;
 }
 
