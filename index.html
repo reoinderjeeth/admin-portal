@@ -396,6 +396,9 @@ tr:hover td { background: #f8fafc; }
   .modal-overlay { position: static !important; background: #fff !important; padding: 0 !important; }
   .modal { max-width: 100% !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; }
   .doc { border: none; padding: 0; }
+  /* Quote and job modals print as documents too. */
+  #job-modal .modal-tabs, #job-modal .pane { display: none !important; }
+  #job-modal #pane-overview { display: block !important; }
 }
 
 /* ── Responsive ── */
@@ -1115,7 +1118,7 @@ async function loadQuotes(el) {
     const quotes = await fetchQuotes();
     if (!quotes.length) { el.innerHTML = '<div class="empty">No quotes found</div>'; return; }
     el.innerHTML = `<div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Quote #</th><th>Title</th><th>Customer</th><th>Total</th><th>Photos</th><th>Status</th><th>Created</th></tr></thead>
+      <thead><tr><th>Quote #</th><th>Title</th><th>Customer</th><th>Total</th><th>Photos</th><th>Status</th><th>Created</th><th></th></tr></thead>
       <tbody>${quotes.map(q => `<tr>
         <td><strong>${esc(q.quote_number || '—')}</strong></td>
         <td>${esc(q.title || '—')}</td>
@@ -1124,10 +1127,320 @@ async function loadQuotes(el) {
         <td>${(q.images || []).length ? `<a href="#media" style="color:#f97316;font-weight:700;font-size:12px">🖼️ ${q.images.length}</a>` : '<span style="color:#cbd5e1">—</span>'}</td>
         <td><span class="badge ${statusBadge(q.status)}">${esc(q.status)}</span></td>
         <td>${fmtDate(q.created_at)}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="viewQuote('${q.id}')">View</button></td>
       </tr>`).join('')}</tbody>
     </table></div></div>`;
   } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
+
+let _quote = null;
+
+window.viewQuote = async function(id) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'quote-modal';
+  overlay.innerHTML = `<div class="modal wide"><div class="loading"><div class="spinner"></div></div></div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeQuoteModal(); });
+
+  try {
+    const [qRes, names] = await Promise.all([
+      _supabase.from('quotes').select('*').eq('id', id).single(),
+      fetchNameMap(),
+    ]);
+    const q = qRes.data;
+    if (!q) { overlay.querySelector('.modal').innerHTML = '<h2>Quote not found</h2>'; return; }
+
+    const biz = q.business_id
+      ? (await _supabase.from('business_profiles').select('*').eq('id', q.business_id).maybeSingle()).data
+      : null;
+
+    let jobRef = '', jobStatus = '';
+    if (q.job_id) {
+      const j = (await _supabase.from('jobs').select('reference_number, status, description').eq('id', q.job_id).maybeSingle()).data;
+      if (j) { jobRef = j.reference_number || ''; jobStatus = j.status || ''; }
+    }
+
+    const items = Array.isArray(q.items) ? q.items : [];
+    const images = Array.isArray(q.images) ? q.images.filter(Boolean) : [];
+    const logo = biz?.logo_url || (biz?.logo_path ? publicUrl(biz.logo_path) : null);
+    const customerName = names[q.customer_id] || '—';
+    const techName = q.technician_id ? (names[q.technician_id] || '—') : null;
+
+    const itemRows = items.map(m => `<tr>
+      <td>${esc(m.description || '')}</td>
+      <td class="num">${m.quantity ?? 1}</td>
+      <td class="num">R${Number(m.unit_price || 0).toFixed(2)}</td>
+      <td class="num"><strong>R${Number(m.total || 0).toFixed(2)}</strong></td>
+    </tr>`).join('');
+
+    // Extra fields the table view does not surface
+    const meta = [
+      ['Quote number', q.quote_number],
+      ['Status', q.status],
+      ['Created', fmtDateTime(q.created_at)],
+      ['Last updated', q.updated_at ? fmtDateTime(q.updated_at) : null],
+      ['Valid until', q.valid_until ? fmtDate(q.valid_until) : null],
+      ['Scheduled start', q.scheduled_start ? fmtDateTime(q.scheduled_start) : null],
+      ['Accepted', q.accepted_at ? fmtDateTime(q.accepted_at) : null],
+      ['Customer', customerName],
+      ['Business', biz?.business_name],
+      ['Technician', techName],
+      ['Job', jobRef ? `${jobRef}${jobStatus ? ' (' + jobStatus + ')' : ''}` : null],
+    ].filter(x => x[1]);
+
+    const expired = q.valid_until && new Date(q.valid_until) < new Date();
+
+    overlay.querySelector('.modal').innerHTML = `
+      <div class="doc" id="quote-doc">
+        <div class="doc-head">
+          <div>
+            ${logo ? `<img src="${esc(logo)}" style="width:52px;height:52px;border-radius:10px;object-fit:cover;margin-bottom:10px" onerror="this.style.display='none'">` : ''}
+            <div class="brand-name">FixerBud</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px">Maintenance &amp; Repairs</div>
+          </div>
+          <div style="text-align:right">
+            <div class="doc-title">QUOTE</div>
+            <div style="font-size:14px;font-weight:700;margin-top:6px">${esc(q.quote_number || '—')}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:3px">Issued ${fmtDate(q.created_at)}</div>
+            ${q.valid_until ? `<div style="font-size:11px;margin-top:3px;color:${expired ? '#dc2626' : '#64748b'}">
+              Valid until ${fmtDate(q.valid_until)}${expired ? ' (expired)' : ''}</div>` : ''}
+          </div>
+        </div>
+
+        <div class="doc-parties">
+          <div>
+            <h4>From</h4>
+            <div class="nm">${esc(biz?.business_name || 'FixerBud')}</div>
+            <div class="ln">
+              ${biz?.business_phone ? `Tel: ${esc(biz.business_phone)}<br>` : ''}
+              ${biz?.suburb ? `${esc(biz.suburb)}<br>` : ''}
+              ${biz?.description ? esc(biz.description) : ''}
+            </div>
+          </div>
+          <div>
+            <h4>Prepared For</h4>
+            <div class="nm">${esc(customerName)}</div>
+            <div class="ln">Customer</div>
+            ${techName ? `<div class="ln" style="margin-top:8px"><strong>Quoted by:</strong> ${esc(techName)}</div>` : ''}
+            ${jobRef ? `<div class="ln" style="margin-top:4px"><strong>Job:</strong> ${esc(jobRef)}</div>` : ''}
+          </div>
+        </div>
+
+        <div class="sub-head" style="margin-top:20px">${esc(q.title || 'Quote')}</div>
+        ${q.description ? `<div class="doc-note"><strong>Scope of work:</strong><br>${esc(q.description)}</div>` : ''}
+
+        <table style="margin-top:16px">
+          <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Unit Price</th><th class="num">Total</th></tr></thead>
+          <tbody>${itemRows || '<tr><td colspan="4" style="color:#94a3b8">No line items</td></tr>'}</tbody>
+        </table>
+
+        <div class="doc-totals">
+          <div class="row"><span>Subtotal</span><span>R${(q.subtotal || 0).toFixed(2)}</span></div>
+          <div class="row"><span>VAT (${((q.tax_rate || 0) * 100).toFixed(0)}%)</span><span>R${(q.tax_amount || 0).toFixed(2)}</span></div>
+          <div class="row grand"><span>Total</span><span>R${(q.total || 0).toFixed(2)}</span></div>
+        </div>
+
+        <div class="doc-stamp ${q.status === 'accepted' ? '' : 'unpaid'}">${esc(String(q.status || 'draft').toUpperCase())}</div>
+        ${q.notes ? `<div class="doc-note"><strong>Notes:</strong> ${esc(q.notes)}</div>` : ''}
+
+        ${images.length ? `
+          <div class="sub-head" style="margin-top:24px">Attached photos (${images.length})</div>
+          <div class="media-grid">
+            ${images.map((u, i) => `<div class="media-item" onclick="openLightbox('${jsq(u)}', '${jsq((q.quote_number || 'Quote') + ' — photo ' + (i + 1))}')">
+              <div class="thumb" style="background-image:url('${esc(u)}')" onerror="this.style.backgroundImage='none';this.textContent='🖼️'"></div>
+              <div class="cap"><div class="t">Photo ${i + 1}</div></div>
+            </div>`).join('')}
+          </div>` : '<div class="doc-note">No photos attached to this quote.</div>'}
+
+        <div class="sub-head" style="margin-top:24px">Details</div>
+        <dl class="kv" style="grid-template-columns:130px 1fr">
+          ${meta.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join('')}
+        </dl>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="printQuote()">🖨️ Print</button>
+        <button class="btn btn-primary" onclick="downloadQuotePDF()">⬇️ Download PDF</button>
+        <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeQuoteModal()">Close</button>
+      </div>`;
+
+    _quote = { q, biz, jobRef, logo, items, images, customerName, techName };
+  } catch (e) {
+    overlay.querySelector('.modal').innerHTML = `<h2>Error</h2><p style="color:#dc2626;font-size:13px">${esc(e.message)}</p>`;
+  }
+};
+
+window.closeQuoteModal = function() {
+  const m = document.getElementById('quote-modal');
+  if (m) m.remove();
+  _quote = null;
+};
+
+window.printQuote = function() { window.print(); };
+
+window.downloadQuotePDF = async function() {
+  if (!_quote) return;
+  if (typeof window.jspdf === 'undefined') {
+    toast('PDF library failed to load — use Print instead');
+    return;
+  }
+  const btn = document.querySelector('#quote-modal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Building PDF...'; }
+
+  const { q, biz, jobRef, logo, items, images, customerName, techName } = _quote;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const M = 40;
+  const money = n => 'R' + Number(n || 0).toFixed(2);
+  let y = M;
+
+  if (logo) {
+    try {
+      const img = await loadImageAsDataUrl(logo);
+      if (img) doc.addImage(img, 'PNG', W - M - 46, y, 46, 46);
+    } catch (_) { /* optional */ }
+  }
+
+  doc.setFont('helvetica', 'bold').setFontSize(21).setTextColor(10, 25, 41);
+  doc.text('FixerBud', M, y + 15);
+  doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(148, 163, 184);
+  doc.text('Maintenance & Repairs', M, y + 28);
+  doc.setFont('helvetica', 'bold').setFontSize(13).setTextColor(249, 115, 22);
+  doc.text('QUOTE', W - M, y + 15, { align: 'right' });
+  doc.setFontSize(10).setTextColor(15, 23, 42);
+  doc.text(q.quote_number || '-', W - M, y + 32, { align: 'right' });
+  doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(148, 163, 184);
+  doc.text('Issued ' + fmtDate(q.created_at), W - M, y + 44, { align: 'right' });
+  if (q.valid_until) doc.text('Valid until ' + fmtDate(q.valid_until), W - M, y + 55, { align: 'right' });
+
+  y += 74;
+  doc.setDrawColor(10, 25, 41).setLineWidth(1.5).line(M, y, W - M, y);
+  y += 22;
+
+  const colW = (W - M * 2) / 2;
+  doc.setFont('helvetica', 'bold').setFontSize(7).setTextColor(148, 163, 184);
+  doc.text('FROM', M, y);
+  doc.text('PREPARED FOR', M + colW, y);
+  y += 12;
+  doc.setFontSize(10).setTextColor(15, 23, 42);
+  doc.text(trunc(doc, biz?.business_name || 'FixerBud', colW - 20), M, y + 4);
+  doc.text(trunc(doc, customerName || 'Customer', colW - 20), M + colW, y + 4);
+  y += 15;
+  doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(100, 116, 139);
+  [biz?.business_phone ? 'Tel: ' + biz.business_phone : '', biz?.suburb || '', biz?.description || '']
+    .filter(Boolean).forEach(l => { doc.text(trunc(doc, l, colW - 20), M, y); y += 11; });
+  y += 4;
+  if (techName) { doc.setTextColor(15, 23, 42).text('Quoted by: ' + trunc(doc, techName, colW - 60), M + colW, y); y += 11; }
+  if (jobRef) doc.text('Job: ' + trunc(doc, jobRef, colW - 40), M + colW, y);
+
+  y += 12;
+  // Title + scope of work
+  if (y > 700) { doc.addPage(); y = M; }
+  doc.setFont('helvetica', 'bold').setFontSize(10).setTextColor(10, 25, 41);
+  doc.text(doc.splitTextToSize(q.title || 'Quote', W - M * 2), M, y);
+  y += 13;
+  if (q.description) {
+    doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(100, 116, 139);
+    const lines = doc.splitTextToSize(q.description, W - M * 2);
+    doc.text(lines, M, y);
+    y += lines.length * 10 + 6;
+  }
+
+  // Table
+  if (y > 700) { doc.addPage(); y = M; }
+  const cols = { desc: M, qty: W - M - 190, unit: W - M - 100, total: W - M };
+  doc.setFillColor(248, 250, 252);
+  doc.rect(M, y - 12, W - M * 2, 22, 'F');
+  doc.setFont('helvetica', 'bold').setFontSize(7).setTextColor(100, 116, 139);
+  doc.text('DESCRIPTION', cols.desc + 6, y + 2);
+  doc.text('QTY', cols.qty, y + 2, { align: 'right' });
+  doc.text('UNIT', cols.unit, y + 2, { align: 'right' });
+  doc.text('TOTAL', cols.total - 6, y + 2, { align: 'right' });
+  y += 18;
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(15, 23, 42);
+  items.forEach(m => {
+    if (y > 700) { doc.addPage(); y = M + 10; }
+    const lines = doc.splitTextToSize(m.description || '', cols.qty - cols.desc - 30);
+    doc.text(lines, cols.desc + 6, y);
+    doc.text(String(m.quantity ?? 1), cols.qty, y, { align: 'right' });
+    doc.setTextColor(100, 116, 139);
+    doc.text(money(m.unit_price), cols.unit, y, { align: 'right' });
+    doc.setFont('helvetica', 'bold').setTextColor(15, 23, 42);
+    doc.text(money(m.total), cols.total - 6, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    y += (lines.length > 1 ? (lines.length - 1) * 11 : 0) + 16;
+    doc.setDrawColor(241, 245, 249).setLineWidth(0.5).line(M, y - 11, W - M, y - 11);
+  });
+  if (!items.length) {
+    doc.setTextColor(148, 163, 184).setFontSize(9).text('No line items', M + 6, y);
+    y += 20;
+  }
+
+  y += 8;
+  if (y > 700) { doc.addPage(); y = M; }
+  const tX = W - M - 190, tW = 190;
+  const tRow = (label, val, bold, rule) => {
+    doc.setFont('helvetica', bold ? 'bold' : 'normal').setFontSize(bold ? 12 : 9);
+    doc.setTextColor(...(bold ? [10, 25, 41] : [100, 116, 139]));
+    doc.text(label, tX, y);
+    doc.setFont('helvetica', 'bold').setTextColor(15, 23, 42);
+    doc.text(val, tX + tW, y, { align: 'right' });
+    y += bold ? 16 : 14;
+    if (rule) { doc.setDrawColor(10, 25, 41).setLineWidth(1).line(tX, y - 11, tX + tW, y - 11); y += 4; }
+  };
+  tRow('Subtotal', money(q.subtotal));
+  tRow('VAT (' + ((q.tax_rate || 0) * 100).toFixed(0) + '%)', money(q.tax_amount));
+  tRow('Total', money(q.total), true, true);
+
+  doc.setTextColor(...(q.status === 'accepted' ? [22, 163, 74] : [234, 88, 12]));
+  doc.setFont('helvetica', 'bold').setFontSize(13);
+  doc.text(String(q.status || 'draft').toUpperCase(), tX, y + 12);
+
+  if (q.notes) {
+    y += 34;
+    if (y > 720) { doc.addPage(); y = M; }
+    doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(100, 116, 139);
+    doc.text(doc.splitTextToSize('Notes: ' + q.notes, W - M * 2), M, y);
+  }
+
+  // Attached photos, two per row with captions.
+  // Row-based so a page reset and a row advance can never compound
+  // (a per-item index would re-apply the row offset after a break).
+  if (images.length) {
+    y += 34;
+    if (y > 640) { doc.addPage(); y = M; }
+    doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(10, 25, 41);
+    doc.text(`Attached photos (${images.length})`, M, y);
+    y += 14;
+    const boxW = (W - M * 2 - 12) / 2;
+    const boxH = Math.min(120, boxW * 0.75);
+    for (let i = 0; i < images.length; i += 2) {
+      if (y + boxH > 780) { doc.addPage(); y = M; }
+      for (let c = 0; c < 2 && i + c < images.length; c++) {
+        const idx = i + c;
+        const cx = M + c * (boxW + 12);
+        let drawn = false;
+        try {
+          const data = await loadImageAsDataUrl(images[idx]);
+          if (data) { doc.addImage(data, 'JPEG', cx, y, boxW, boxH); drawn = true; }
+        } catch (_) { /* fall through to placeholder */ }
+        if (!drawn) {
+          doc.setDrawColor(226, 232, 240).setLineWidth(0.5).rect(cx, y, boxW, boxH);
+          doc.setFontSize(7).setTextColor(148, 163, 184);
+          doc.text('Image unavailable', cx + boxW / 2, y + boxH / 2, { align: 'center' });
+        }
+        doc.setFontSize(7).setTextColor(148, 163, 184);
+        doc.text('Photo ' + (idx + 1), cx + 2, y + boxH + 10);
+      }
+      y += boxH + 22;
+    }
+  }
+
+  doc.save(`${(q.quote_number || 'quote').replace(/[^\w.-]/g, '_')}.pdf`);
+  if (btn) { btn.disabled = false; btn.textContent = '⬇️ Download PDF'; }
+  toast('Quote downloaded');
+};
 
 // ── Invoices ──
 async function loadInvoices(el) {

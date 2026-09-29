@@ -61,7 +61,7 @@ If 038 is missing, the Dashboard shows a notice saying so instead of guessing.
 | Jobs | All jobs with a **View** button opening a per-job detail modal |
 | Messages | Every chat transcript, grouped per job, with search + job filter |
 | Images | All job photos, quote photos, business logos, galleries and certificates |
-| Quotes | All quotes with totals and photo counts |
+| Quotes | All quotes with a **View** button: full quote document, photos, print and PDF download |
 | Invoices | All invoices with a **View** button: full invoice document, print, and PDF download |
 | Calls | Call history with talk-time summary and per-call duration |
 | Reviews | Ratings and written feedback |
@@ -71,9 +71,16 @@ If 038 is missing, the Dashboard shows a notice saying so instead of guessing.
 The **View** modal on a job is the fastest way to audit one job end to end:
 overview, messages, quotes, invoices, calls and photos in separate tabs.
 
-Invoices render as a real document (logo, parties, line items, serial numbers,
-VAT, PAID stamp) and can be downloaded as a PDF or printed. PDFs are generated
-client-side with jsPDF, so no server round-trip is involved.
+Invoices and quotes both render as a real document (logo, parties, line items,
+VAT, status stamp) and can be downloaded as a PDF or printed. PDFs are
+generated client-side with jsPDF, so no server round-trip is involved.
+
+A quote's `View` modal shows everything the quotes table does not: the scope
+of work, notes, validity window, scheduled start, acceptance date, last-updated
+timestamp, linked job and status, business and technician, and all attached
+photos as a clickable gallery. The downloaded PDF embeds those photos two per
+row, paginating as needed. If a photo cannot be fetched, a placeholder is drawn
+rather than failing the export.
 
 ## Caching
 
