@@ -56,6 +56,11 @@ If 038 is missing, the Dashboard shows a notice saying so instead of guessing.
 deactivated accounts. It is required for the *Deactivate* button on the Users
 page.
 
+To run it, open **Supabase dashboard → SQL Editor** and paste the *contents* of
+the file. Pasting the file path itself fails with a syntax error, since the
+editor only accepts SQL. The file is wrapped in `BEGIN`/`COMMIT`, so either all
+of it applies or none of it does.
+
 ## Required edge functions
 
 ```
