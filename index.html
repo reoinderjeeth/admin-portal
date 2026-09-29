@@ -948,8 +948,12 @@ async function loadUsers(el) {
 async function loadBusinesses(el) {
   try {
     const bizs = await fetchBusinesses();
-    if (!bizs.length) { el.innerHTML = '<div class="empty">No businesses found</div>'; return; }
-    el.innerHTML = `<div class="card"><div class="table-wrap"><table>
+    el.innerHTML = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <button class="btn btn-primary" onclick="newBiz()">+ Add Business</button>
+      </div>
+      ${!bizs.length ? '<div class="empty">No businesses found</div>' : ''}
+      ${bizs.length ? `<div class="card"><div class="table-wrap"><table>
       <thead><tr><th>Logo</th><th>Name</th><th>Phone</th><th>Suburb</th><th>Media</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>${bizs.map(b => {
         const status = b.verification_status || 'unverified';
@@ -957,30 +961,143 @@ async function loadBusinesses(el) {
         const logoUrl = b.logo_url || (b.logo_path ? publicUrl(b.logo_path) : null);
         const mediaCount = (b.gallery_urls || []).length + (b.certificate_urls || []).length;
         const media = mediaCount
-          ? `<a href="#media" style="color:#f97316;font-weight:700;font-size:12px">🖼️ ${mediaCount} image${mediaCount === 1 ? '' : 's'}</a>`
-          : '<span style="color:#cbd5e1;font-size:12px">—</span>';
+          ? `<a href="#media" style="color:#f97316;font-weight:700;font-size:12px">${mediaCount} image${mediaCount === 1 ? '' : 's'}</a>`
+          : '<span style="color:#cbd5e1;font-size:12px">-</span>';
         const actions = `
           <div class="row-actions">
-            <button class="btn btn-sm btn-primary" onclick="editBiz('${b.id}')">✎ Edit</button>
+            <button class="btn btn-sm btn-primary" onclick="editBiz('${b.id}')">Edit</button>
             ${status === 'pending' ? `
-              <button class="btn btn-sm btn-success" onclick="verifyBiz('${b.id}','verified')">✓</button>
-              <button class="btn btn-sm btn-danger" onclick="verifyBiz('${b.id}','rejected')">✗</button>
+              <button class="btn btn-sm btn-success" onclick="verifyBiz('${b.id}','verified')" title="Approve">✓</button>
+              <button class="btn btn-sm btn-danger" onclick="verifyBiz('${b.id}','rejected')" title="Reject">✕</button>
             ` : ''}
           </div>`;
         return `<tr>
-          <td>${logoUrl ? `<img src="${esc(logoUrl)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover">` : '<span style="color:#ccc">—</span>'}</td>
-          <td><strong>${esc(b.business_name || '—')}</strong></td>
-          <td>${esc(b.business_phone || '—')}</td>
-          <td>${esc(b.suburb || '—')}</td>
+          <td>${logoUrl ? `<img src="${esc(logoUrl)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover">` : '<span style="color:#ccc">-</span>'}</td>
+          <td><strong>${esc(b.business_name || '-')}</strong></td>
+          <td>${esc(b.business_phone || '-')}</td>
+          <td>${esc(b.suburb || '-')}</td>
           <td>${media}</td>
           <td><span class="badge ${badgeClass}">${status}</span></td>
           <td>${fmtDate(b.created_at)}</td>
           <td>${actions}</td>
         </tr>`;
       }).join('')}</tbody>
-    </table></div></div>`;
+    </table></div></div>` : ''}`;
   } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
+
+// --- Add Business -------------------------------------------------------
+// business_profiles.id -> profiles.id -> auth.users.id, so a business cannot
+// exist without a real auth user. Creating that needs the service role, which
+// must never ship to the browser, so this goes through an edge function.
+function newBiz() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'newbiz-modal';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Add Business</h2>
+      <p style="font-size:12px;color:#64748b;margin:-4px 0 16px">
+        Creates a login for the business owner. Share the generated password with
+        them once — it is not stored anywhere and cannot be shown again.
+      </p>
+
+      <div class="form-group"><label>Business Name *</label><input id="nb-name" placeholder="e.g. Durban Plumbing Co"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Owner Full Name *</label><input id="nb-owner" placeholder="e.g. Thabo Mokoena"></div>
+        <div class="form-group"><label>Email *</label><input id="nb-email" type="email" placeholder="owner@business.co.za"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Business Phone</label><input id="nb-bphone" placeholder="e.g. 082 123 4567"></div>
+        <div class="form-group"><label>Owner Phone</label><input id="nb-phone" placeholder="e.g. 082 123 4567"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Suburb</label><input id="nb-suburb" placeholder="e.g. Umhlanga"></div>
+        <div class="form-group"><label>Logo URL</label><input id="nb-logo" placeholder="https://..."></div>
+      </div>
+      <div class="form-group"><label>Description</label><textarea id="nb-desc" rows="2" placeholder="What this business does"></textarea></div>
+
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0 8px;cursor:pointer">
+        <input type="checkbox" id="nb-verified" style="width:auto"> Mark as verified immediately
+      </label>
+
+      <div id="nb-cred" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:6px">Login created — copy this now</div>
+        <div style="font-size:12px;color:#166534;line-height:1.7">
+          Email: <code id="nb-cred-email" style="background:#fff;padding:1px 4px;border-radius:3px"></code><br>
+          Password: <code id="nb-cred-pass" style="background:#fff;padding:1px 4px;border-radius:3px"></code>
+        </div>
+        <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="copyNewBizCreds()">Copy</button>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" style="background:#e0e0e0;color:#333" onclick="closeNewBizModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveNewBiz()">Create Business</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeNewBizModal(); });
+  document.getElementById('nb-name').focus();
+}
+
+function closeNewBizModal() {
+  const m = document.getElementById('newbiz-modal');
+  if (m) m.remove();
+}
+
+window.copyNewBizCreds = function() {
+  const e = document.getElementById('nb-cred-email').textContent;
+  const p = document.getElementById('nb-cred-pass').textContent;
+  const done = () => toast('Login details copied');
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(`Email: ${e}\nPassword: ${p}`).then(done).catch(() => {});
+  else toast('Copy failed — select and copy manually');
+};
+
+window.saveNewBiz = async function() {
+  const btn = document.querySelector('#newbiz-modal .btn-primary');
+  const val = id => document.getElementById(id).value.trim();
+
+  const payload = {
+    businessName: val('nb-name'),
+    fullName: val('nb-owner'),
+    email: val('nb-email').toLowerCase(),
+    businessPhone: val('nb-bphone') || null,
+    phone: val('nb-phone') || null,
+    suburb: val('nb-suburb') || null,
+    description: val('nb-desc') || null,
+    logoUrl: val('nb-logo') || null,
+    verified: document.getElementById('nb-verified').checked,
+  };
+
+  if (!payload.businessName || !payload.fullName || !payload.email) {
+    toast('Business name, owner name and email are required');
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+    toast('Enter a valid email address');
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const { data, error } = await _supabase.functions.invoke('add-business', { body: payload });
+    if (error) throw new Error(error.message);
+
+    document.getElementById('nb-cred-email').textContent = data.email;
+    document.getElementById('nb-cred-pass').textContent = data.password;
+    document.getElementById('nb-cred').style.display = 'block';
+    btn.textContent = 'Done';
+    btn.disabled = true;
+    loadPage('businesses');
+    toast('Business created — copy the login details');
+  } catch (e) {
+    const msg = String(e.message || e);
+    toast(/function|not found|404/i.test(msg)
+      ? 'add-business function not deployed — see README'
+      : 'Error: ' + msg, 6000);
+    btn.disabled = false; btn.textContent = 'Create Business';
+  }
+};
 
 window.verifyBiz = async function(id, status) {
   await _supabase.from('business_profiles').update({ verification_status: status }).eq('id', id);

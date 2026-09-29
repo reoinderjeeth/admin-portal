@@ -51,13 +51,41 @@ reasons a page can look empty:
 
 If 038 is missing, the Dashboard shows a notice saying so instead of guessing.
 
+## Required edge function
+
+```
+supabase/functions/add-business/index.ts
+```
+
+Deploy once with the Supabase CLI:
+
+```
+supabase functions deploy add-business
+```
+
+**Why it exists.** `business_profiles.id` is a primary key that references
+`profiles.id`, which in turn references `auth.users.id`. A business therefore
+cannot exist without a real login behind it, and creating that login requires
+the service role key. That key must never be shipped to the browser, so the
+portal's *Add Business* button calls this edge function instead of writing to
+the database directly.
+
+The function checks the caller's profile role is `admin`, generates a random
+password, and creates the auth user, the `profiles` row (`role = 'business'`)
+and the `business_profiles` row. It rejects duplicate business names and
+emails before creating anything, and rolls back the auth user if a later step
+fails, so it cannot leave a half-created account behind.
+
+Until it is deployed, the *Add Business* button reports that the function is
+missing rather than failing with a raw error.
+
 ## Pages
 
 | Page | Contents |
 | --- | --- |
 | Dashboard | Headline counts plus a **Data Access Check** diagnostic table |
 | Users | All profiles with role badges |
-| Businesses | Verification queue, logos, media counts |
+| Businesses | Verification queue, logos, media counts, plus **Add Business** to provision a new business and its owner login |
 | Jobs | All jobs with a **View** button opening a per-job detail modal |
 | Messages | Every chat transcript, grouped per job, with search + job filter |
 | Images | All job photos, quote photos, business logos, galleries and certificates |
