@@ -687,27 +687,6 @@ async function fetchPartyMap() {
   return map;
 }
 
-// A discount is stored as an ordinary line item, so it would otherwise render
-// with a quantity and a negative rate (e.g. "Less discount (2.9%) per consult",
-// qty 2, -R8.00). That reads as a product being sold rather than a discount.
-// Detect it and surface the percentage instead of a quantity.
-function isDiscountItem(m) {
-  if (!m) return false;
-  const d = String(m.description || '').toLowerCase();
-  if (/\bdiscount\b/.test(d) || /\brebate\b/.test(d) || /\bsaving\b/.test(d)) return true;
-  return Number(m.total) < 0 || Number(m.unit_price) < 0;
-}
-
-// Percentage from the description text, e.g. "Less discount (2.9%) per consult".
-// Only the stated percentage is trustworthy: deriving one from the amounts
-// would just echo the quantity back as a fake rate, so we return null instead
-// and the row falls back to the word "discount".
-function discountPercent(m) {
-  const d = String(m?.description || '');
-  const pct = d.match(/(\d+(?:[.,]\d+)?)\s*%/);
-  return pct ? parseFloat(pct[1].replace(',', '.')) : null;
-}
-
 const ROLE_LABEL = {
   customer: 'Client', technician: 'Installer', business: 'Business', admin: 'Admin',
 };
@@ -1448,24 +1427,12 @@ window.viewQuote = async function(id) {
     const techName = q.technician_id ? (parties[q.technician_id]?.name || '—') : null;
     const commCount = comm.messages.length + comm.calls.length + comm.notifications.length;
 
-    const itemRows = items.map(m => {
-      // Discounts show a percentage, not a quantity and a negative rate.
-      if (isDiscountItem(m)) {
-        const pct = discountPercent(m);
-        return `<tr>
-          <td>${esc(m.description || 'Discount')}</td>
-          <td class="num" style="color:#16a34a;font-weight:700">${pct != null ? pct + '%' : '—'}</td>
-          <td class="num" style="color:#94a3b8">—</td>
-          <td class="num" style="color:#94a3b8">—</td>
-        </tr>`;
-      }
-      return `<tr>
+    const itemRows = items.map(m => `<tr>
       <td>${esc(m.description || '')}</td>
       <td class="num">${m.quantity ?? 1}</td>
       <td class="num">R${Number(m.unit_price || 0).toFixed(2)}</td>
       <td class="num"><strong>R${Number(m.total || 0).toFixed(2)}</strong></td>
-    </tr>`;
-    }).join('');
+    </tr>`).join('');
 
     // Extra fields the table view does not surface
     const meta = [
@@ -1690,22 +1657,11 @@ window.downloadQuotePDF = async function() {
     if (y > 700) { doc.addPage(); y = M + 10; }
     const lines = doc.splitTextToSize(m.description || '', cols.qty - cols.desc - 30);
     doc.text(lines, cols.desc + 6, y);
-
-    if (isDiscountItem(m)) {
-      // Percentage only: no quantity, no negative unit rate.
-      const pct = discountPercent(m);
-      doc.setFont('helvetica', 'bold').setTextColor(22, 163, 74);
-      doc.text(pct != null ? pct + '%' : 'discount', cols.qty, y, { align: 'right' });
-      doc.setFont('helvetica', 'normal').setTextColor(148, 163, 184);
-      doc.text('—', cols.unit, y, { align: 'right' });
-      doc.text('—', cols.total - 6, y, { align: 'right' });
-    } else {
-      doc.text(String(m.quantity ?? 1), cols.qty, y, { align: 'right' });
-      doc.setTextColor(100, 116, 139);
-      doc.text(money(m.unit_price), cols.unit, y, { align: 'right' });
-      doc.setFont('helvetica', 'bold').setTextColor(15, 23, 42);
-      doc.text(money(m.total), cols.total - 6, y, { align: 'right' });
-    }
+    doc.text(String(m.quantity ?? 1), cols.qty, y, { align: 'right' });
+    doc.setTextColor(100, 116, 139);
+    doc.text(money(m.unit_price), cols.unit, y, { align: 'right' });
+    doc.setFont('helvetica', 'bold').setTextColor(15, 23, 42);
+    doc.text(money(m.total), cols.total - 6, y, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     y += (lines.length > 1 ? (lines.length - 1) * 11 : 0) + 16;
     doc.setDrawColor(241, 245, 249).setLineWidth(0.5).line(M, y - 11, W - M, y - 11);
