@@ -26,12 +26,13 @@ Sign in with an admin account (email + password). The portal checks the `role` f
 
 ## Required database migrations
 
-Two migrations are required. Both are idempotent (safe to re-run).
+These migrations are required. All are idempotent (safe to re-run).
 
 ```
   supabase/migrations/037_admin_read_all.sql
   supabase/migrations/038_admin_row_counts.sql
   supabase/migrations/039_admin_user_management.sql
+  supabase/migrations/040_admin_technicians_read.sql
 ```
 
 Run them once in the **Supabase dashboard → SQL Editor**.
@@ -53,8 +54,12 @@ reasons a page can look empty:
 If 038 is missing, the Dashboard shows a notice saying so instead of guessing.
 
 **039** adds `profiles.is_active` plus a trigger that blocks new sign-ins for
-deactivated accounts. It is required for the *Deactivate* button on the Users
-page.
+deactivated accounts. It also revokes existing sessions on deactivation. It is
+required for the *Deactivate* button on the Users page.
+
+**040** grants admins `SELECT` on `technicians` so the Technicians tab can show
+a technician's business and status, and adds immediate session revocation when
+`profiles.is_active` flips to `false`.
 
 To run it, open **Supabase dashboard → SQL Editor** and paste the *contents* of
 the file. Pasting the file path itself fails with a syntax error, since the
