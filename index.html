@@ -1011,11 +1011,34 @@ async function runSetupCheck() {
 
 window.runSetupCheck = runSetupCheck;
 
+// Admins cannot read the technicians table: 004 gave technicians self-access
+// and business owners access to their own, and no policy grants admins SELECT.
+// The Technicians tab still works without it -- the flag just falls back to
+// profiles.is_active -- so this is a read-only nicety, not a blocker.
+async function fetchTechnicians() {
+  const { data, error } = await _supabase.from('technicians').select('id, is_active, business_id');
+  if (error) return { map: {}, denied: true };
+  const map = {};
+  (data || []).forEach(t => { map[t.id] = t; });
+  return { map, denied: false };
+}
+
+async function fetchBusinessNames() {
+  const { data } = await _supabase.from('business_profiles').select('id, business_name');
+  const map = {};
+  (data || []).forEach(b => { map[b.id] = b.business_name; });
+  return map;
+}
+
 // --- Users -------------------------------------------------------------
 // Customers and Technicians are kept in separate tabs because they are
 // governed differently: a technician belongs to a business and is switched
 // off via technicians.is_active, while a customer has no such row.
+// Values are the plural route names, but profiles.role is the singular
+// user_role enum ('customer' / 'technician'), so each tab carries its own role.
+const USER_TABS = { customers: 'customer', technicians: 'technician' };
 let _userTab = 'customers';
+const roleForTab = tab => USER_TABS[tab] || tab;
 
 async function loadUsers(el) {
   try {
@@ -1038,18 +1061,21 @@ window.setUserTab = function(tab) { _userTab = tab; loadPage('users'); };
 async function renderUserTable(users) {
   const box = document.getElementById('user-table');
   if (!box) return;
-  const rows = users.filter(u => u.role === _userTab);
+  const rows = users.filter(u => u.role === roleForTab(_userTab));
 
   if (!rows.length) {
     box.innerHTML = `<div class="empty">No ${_userTab} found</div>`;
     return;
   }
 
-  // Technicians need their active flag from the technicians table.
+  // Technicians carry their own active flag and belong to a business, so both
+  // are read alongside. RLS may deny these; the table still renders without.
   let techActive = {};
+  let bizNames = {};
   if (_userTab === 'technicians') {
-    const { data } = await _supabase.from('technicians').select('id, is_active, business_id');
-    (data || []).forEach(t => { techActive[t.id] = t; });
+    const [tech, biz] = await Promise.all([fetchTechnicians(), fetchBusinessNames()]);
+    techActive = tech.map;
+    bizNames = biz;
   }
 
   box.innerHTML = `<div class="card"><div class="table-wrap"><table>
@@ -1058,7 +1084,7 @@ async function renderUserTable(users) {
       const isTech = u.role === 'technician';
       const tech = techActive[u.id];
       const active = isTech ? (tech?.is_active !== false && u.is_active !== false) : u.is_active !== false;
-      const biz = tech?.business_id ? namesFromUsers(users)[tech.business_id] : null;
+      const biz = tech?.business_id ? bizNames[tech.business_id] : null;
       return `<tr style="${active ? '' : 'opacity:.55'}">
         <td><strong>${esc(u.full_name || '-')}</strong>${biz ? `<div style="font-size:11px;color:#94a3b8">${esc(biz)}</div>` : ''}</td>
         <td>${esc(u.email || '-')}</td>
@@ -1077,13 +1103,6 @@ async function renderUserTable(users) {
       </tr>`;
     }).join('')}</tbody>
   </table></div></div>`;
-}
-
-// Business name lookup, for showing which company a technician belongs to.
-function namesFromUsers(users) {
-  const map = {};
-  users.forEach(u => { map[u.id] = u.full_name; });
-  return map;
 }
 
 // profiles.is_active arrives with migration 039. Detect that specific failure
