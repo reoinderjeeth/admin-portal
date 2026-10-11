@@ -577,6 +577,37 @@ tr:last-child td{border-bottom:none}
 .login-card{border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,.35)}
 .login-card .logo img{box-shadow:0 10px 28px rgba(249,115,22,.4)}
 .login-card h1{letter-spacing:-.4px}
+
+/* ── Dashboard ── */
+.dash-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.dash-head h2{font-size:20px;color:var(--fb-navy);letter-spacing:-.3px}
+.dash-head p{font-size:13px;color:#7c8aa0;margin-top:4px}
+.dash-alert{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1px solid #fed7aa;color:#9a3412;border-radius:14px;padding:12px 16px;font-size:13px;text-decoration:none;margin-bottom:18px;transition:box-shadow .18s}
+.dash-alert:hover{box-shadow:var(--fb-shadow)}
+.dash-alert svg{flex-shrink:0}
+.dash-alert-go{margin-left:auto;font-weight:700}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:16px}
+.kpi{display:flex;align-items:center;gap:14px;background:linear-gradient(180deg,#fff,#fbfdff);border:1px solid var(--fb-line);border-radius:18px;padding:18px 20px;box-shadow:var(--fb-shadow);text-decoration:none;transition:transform .18s,box-shadow .18s,border-color .18s}
+.kpi:hover{transform:translateY(-3px);box-shadow:var(--fb-shadow-lg);border-color:#f9c69a}
+.kpi-ic{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--c,#f97316);background:#f1f5f9;background:color-mix(in srgb,var(--c,#f97316) 14%,#fff)}
+.kpi-value{font-size:26px;font-weight:800;color:var(--fb-navy);letter-spacing:-.7px;line-height:1}
+.kpi-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#7c8aa0;margin-top:6px}
+.kpi-go{margin-left:auto;color:#c2cddb;font-weight:800;transition:transform .18s,color .18s}
+.kpi:hover .kpi-go{transform:translateX(3px);color:var(--c,#f97316)}
+.mini-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:22px}
+.mini{display:block;background:#fff;border:1px solid var(--fb-line);border-radius:14px;padding:14px 16px;box-shadow:var(--fb-shadow);text-decoration:none;transition:transform .18s,border-color .18s,box-shadow .18s}
+.mini:hover{transform:translateY(-2px);border-color:#f9c69a;box-shadow:var(--fb-shadow-lg)}
+.mini-value{font-size:20px;font-weight:800;color:var(--fb-navy);letter-spacing:-.4px;line-height:1}
+.mini-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#8296ab;margin-top:5px}
+.mini-sub{font-size:11px;color:#a7b4c4;margin-top:2px}
+.dash-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.quick{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--fb-line);border-radius:12px;background:#fff;font-size:13px;font-weight:600;color:#334155;text-decoration:none;transition:all .16s}
+.quick svg{color:#f97316;flex-shrink:0}
+.quick:hover{border-color:#f9c69a;background:#fff7ed;color:#9a3412;transform:translateY(-1px)}
+@media (max-width:1100px){.mini-grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:900px){.dash-cols{grid-template-columns:1fr}}
+@media (max-width:520px){.mini-grid{grid-template-columns:repeat(2,1fr)}.kpi-value{font-size:22px}}
 </style>
 </head>
 <body>
@@ -590,7 +621,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-3';
+const BUILD = 'ui-premium-4';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -974,41 +1005,127 @@ function loadPage(route) {
 }
 
 // ── Dashboard ──
+// Compact stroke icons so the tiles read as a product, not a toy.
+const ICON_PATHS = {
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  user: '<circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/>',
+  building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  check: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  dollar: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>',
+  message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L3 18v3h3l6.5-6.5a4 4 0 0 0 5.2-5.2l-2 2-2.5-.5-.5-2.5z"/>',
+  refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.22 4.22A9 9 0 0 0 20.49 9"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  folder: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+};
+function icon(name, size = 20) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
+}
+
 async function loadDashboard(el) {
   try {
-    const stats = await fetchStats();
+    const s = await fetchStats();
+    const pending = s.pendingVerifications;
+    const pct = n => s.totalBusinesses ? (n / s.totalBusinesses * 100) : 0;
     el.innerHTML = `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" style="color:#1565c0">${stats.totalUsers}</div><div class="stat-label">Total Users</div></div>
-        <div class="stat-card"><div class="stat-icon">🧑</div><div class="stat-value" style="color:#2e7d32">${stats.customers}</div><div class="stat-label">Customers</div></div>
-        <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-value" style="color:#00695c">${stats.totalBusinesses}</div><div class="stat-label">Businesses</div></div>
-        <div class="stat-card"><div class="stat-icon">🔧</div><div class="stat-value" style="color:#e65100">${stats.techs}</div><div class="stat-label">Technicians</div></div>
-        <div class="stat-card"><div class="stat-icon">⚡</div><div class="stat-value" style="color:#1565c0">${stats.activeJobs}</div><div class="stat-label">Active Jobs</div></div>
-        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" style="color:#2e7d32">${stats.completedJobs}</div><div class="stat-label">Completed Jobs</div></div>
-        <div class="stat-card"><div class="stat-icon">📄</div><div class="stat-value" style="color:#7b1fa2">${stats.totalQuotes}</div><div class="stat-label">Quotes</div></div>
-        <div class="stat-card"><div class="stat-icon">💬</div><div class="stat-value" style="color:#0a1929">${stats.totalMessages}</div><div class="stat-label">Messages</div></div>
-        <div class="stat-card"><div class="stat-icon">📞</div><div class="stat-value" style="color:#00695c">${stats.totalCalls}</div><div class="stat-label">Calls (${stats.missedCalls} missed)</div></div>
-        <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value" style="color:#f59e0b">${stats.avgRating.toFixed(1)}</div><div class="stat-label">Avg Rating (${stats.totalReviews})</div></div>
-        <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value" style="color:#e65100">R${stats.revenue.toFixed(0)}</div><div class="stat-label">Revenue</div></div>
+      <div class="dash-head">
+        <div>
+          <h2>Overview</h2>
+          <p>Everything happening across FixerBud right now.</p>
+        </div>
+        <button class="btn btn-secondary" onclick="loadDashboard(document.getElementById('page-content'))">↻ Refresh</button>
       </div>
-      <div class="card">
-        <h2>Business Verification Status</h2>
-        <div class="progress-item">
-          <span class="label">Verified</span>
-          <div class="bar"><div class="bar-fill" style="width:${stats.totalBusinesses ? (stats.verifiedBusinesses/stats.totalBusinesses*100) : 0}%;background:#2e7d32"></div></div>
-          <span class="count" style="color:#2e7d32">${stats.verifiedBusinesses}</span>
+
+      ${pending ? `<a class="dash-alert" href="#businesses">
+        ${icon('check', 18)}
+        <span><strong>${pending}</strong> business${pending === 1 ? '' : 'es'} awaiting verification</span>
+        <span class="dash-alert-go">Review →</span>
+      </a>` : ''}
+
+      <div class="kpi-grid">
+        <a class="kpi" href="#users" style="--c:#2563eb">
+          <div class="kpi-ic">${icon('users')}</div>
+          <div>
+            <div class="kpi-value">${s.totalUsers}</div>
+            <div class="kpi-label">Total Users</div>
+          </div>
+          <span class="kpi-go">→</span>
+        </a>
+        <a class="kpi" href="#businesses" style="--c:#0d9488">
+          <div class="kpi-ic">${icon('building')}</div>
+          <div>
+            <div class="kpi-value">${s.totalBusinesses}</div>
+            <div class="kpi-label">Businesses</div>
+          </div>
+          <span class="kpi-go">→</span>
+        </a>
+        <a class="kpi" href="#jobs" style="--c:#f97316">
+          <div class="kpi-ic">${icon('briefcase')}</div>
+          <div>
+            <div class="kpi-value">${s.activeJobs}</div>
+            <div class="kpi-label">Active Jobs</div>
+          </div>
+          <span class="kpi-go">→</span>
+        </a>
+        <a class="kpi" href="#invoices" style="--c:#7c3aed">
+          <div class="kpi-ic">${icon('dollar')}</div>
+          <div>
+            <div class="kpi-value">R${s.revenue.toFixed(0)}</div>
+            <div class="kpi-label">Revenue (accepted)</div>
+          </div>
+          <span class="kpi-go">→</span>
+        </a>
+      </div>
+
+      <div class="mini-grid">
+        <a class="mini" href="#users"><div class="mini-value">${s.customers}</div><div class="mini-label">Customers</div></a>
+        <a class="mini" href="#users"><div class="mini-value">${s.techs}</div><div class="mini-label">Technicians</div></a>
+        <a class="mini" href="#quotes"><div class="mini-value">${s.totalQuotes}</div><div class="mini-label">Quotes</div></a>
+        <a class="mini" href="#messages"><div class="mini-value">${s.totalMessages}</div><div class="mini-label">Messages</div></a>
+        <a class="mini" href="#calls"><div class="mini-value">${s.totalCalls}</div><div class="mini-label">Calls</div><div class="mini-sub">${s.missedCalls} missed</div></a>
+        <a class="mini" href="#reviews"><div class="mini-value">${s.avgRating.toFixed(1)}<span style="font-size:12px;color:#f59e0b"> ★</span></div><div class="mini-label">Avg Rating</div><div class="mini-sub">${s.totalReviews} review${s.totalReviews === 1 ? '' : 's'}</div></a>
+      </div>
+
+      <div class="dash-cols">
+        <div class="card">
+          <h2>Business Verification</h2>
+          <div class="progress-item">
+            <span class="label">Verified</span>
+            <div class="bar"><div class="bar-fill" style="width:${pct(s.verifiedBusinesses)}%;background:#2e7d32"></div></div>
+            <span class="count" style="color:#2e7d32">${s.verifiedBusinesses}</span>
+          </div>
+          <div class="progress-item">
+            <span class="label">Pending</span>
+            <div class="bar"><div class="bar-fill" style="width:${pct(s.pendingVerifications)}%;background:#e65100"></div></div>
+            <span class="count" style="color:#e65100">${s.pendingVerifications}</span>
+          </div>
+          <div class="progress-item">
+            <span class="label">Unverified</span>
+            <div class="bar"><div class="bar-fill" style="width:${pct(s.totalBusinesses - s.verifiedBusinesses - s.pendingVerifications)}%;background:#9e9e9e"></div></div>
+            <span class="count" style="color:#9e9e9e">${s.totalBusinesses - s.verifiedBusinesses - s.pendingVerifications}</span>
+          </div>
+          <a class="btn btn-secondary" href="#businesses" style="margin-top:16px">Manage businesses →</a>
         </div>
-        <div class="progress-item">
-          <span class="label">Pending</span>
-          <div class="bar"><div class="bar-fill" style="width:${stats.totalBusinesses ? (stats.pendingVerifications/stats.totalBusinesses*100) : 0}%;background:#e65100"></div></div>
-          <span class="count" style="color:#e65100">${stats.pendingVerifications}</span>
-        </div>
-        <div class="progress-item">
-          <span class="label">Unverified</span>
-          <div class="bar"><div class="bar-fill" style="width:${stats.totalBusinesses ? ((stats.totalBusinesses-stats.verifiedBusinesses-stats.pendingVerifications)/stats.totalBusinesses*100) : 0}%;background:#9e9e9e"></div></div>
-          <span class="count" style="color:#9e9e9e">${stats.totalBusinesses - stats.verifiedBusinesses - stats.pendingVerifications}</span>
+
+        <div class="card">
+          <h2>Quick Actions</h2>
+          <div class="quick-grid">
+            <a class="quick" href="#businesses">${icon('plus', 16)} Add / edit business</a>
+            <a class="quick" href="#users">${icon('users', 16)} Manage users</a>
+            <a class="quick" href="#categories">${icon('folder', 16)} Categories</a>
+            <a class="quick" href="#notifications">${icon('bell', 16)} Notifications</a>
+            <a class="quick" href="#media">${icon('file', 16)} Media & images</a>
+            <a class="quick" href="#setup">${icon('settings', 16)} Setup check</a>
+          </div>
         </div>
       </div>
+
       <div class="card" id="diag-card" style="display:none">
         <h2>Data Access Check</h2>
         <div id="diag-body"><div class="loading"><div class="spinner"></div></div></div>
