@@ -416,6 +416,168 @@ tr:hover td { background: #f8fafc; }
   .form-row { flex-direction: column; gap: 0; }
 }
 </style>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   FixerBud Admin — Premium UI pass
+   Visual overrides only (no markup / JS changes). Layered on top of
+   the base theme so every page picks up the refined look at once.
+   ══════════════════════════════════════════════════════════════════ */
+:root{
+  --fb-navy:#0a1929; --fb-navy-2:#0f2341; --fb-ink:#0f172a;
+  --fb-orange:#f97316; --fb-orange-2:#ea580c;
+  --fb-line:#e6ecf3; --fb-muted:#64748b;
+  --fb-shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.05);
+  --fb-shadow-lg:0 18px 48px rgba(10,25,41,.12);
+}
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(900px 480px at 100% -8%, rgba(249,115,22,.10), transparent 60%),
+    radial-gradient(820px 460px at -8% 0%, rgba(15,35,65,.08), transparent 60%),
+    linear-gradient(180deg,#eef3f9 0%,#e9eff6 100%) fixed;
+  -webkit-font-smoothing:antialiased;
+}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{
+  background:linear-gradient(180deg,#f97316,#ea580c);
+  border-radius:9px;border:2px solid transparent;background-clip:padding-box;
+}
+
+/* ── Sidebar ── */
+.sidebar{
+  background:linear-gradient(180deg,#0a1929 0%,#0c2140 55%,#0a1a2f 100%);
+  box-shadow:2px 0 26px rgba(10,25,41,.18);
+}
+.sidebar .brand{padding:22px 20px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sidebar .brand img{box-shadow:0 6px 16px rgba(249,115,22,.35)}
+.sidebar .brand h2{letter-spacing:-.3px}
+.sidebar .brand small{letter-spacing:1.4px}
+.sidebar nav{padding:14px 12px}
+.sidebar nav a{
+  border-radius:12px;padding:12px 14px;margin-bottom:4px;
+  color:#8ea3bd;font-weight:500;position:relative;
+}
+.sidebar nav a span:first-child{width:22px;text-align:center;font-size:15px;flex-shrink:0}
+.sidebar nav a:hover{color:#fff;background:rgba(255,255,255,.06);transform:translateX(2px)}
+.sidebar nav a.active{
+  color:#fff;font-weight:600;
+  background:linear-gradient(135deg,rgba(249,115,22,.24),rgba(249,115,22,.07));
+  box-shadow:inset 0 0 0 1px rgba(249,115,22,.32), 0 8px 20px rgba(249,115,22,.12);
+}
+.sidebar nav a.active::before{
+  content:'';position:absolute;left:-12px;top:50%;transform:translateY(-50%);
+  width:4px;height:22px;border-radius:0 4px 4px 0;background:var(--fb-orange);
+  box-shadow:0 0 12px rgba(249,115,22,.85);
+}
+.sidebar .sidebar-footer button{border-radius:12px}
+.sidebar .sidebar-footer button:hover{transform:translateY(-1px)}
+
+/* ── Topbar ── */
+.topbar{
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(16px) saturate(1.4);
+  -webkit-backdrop-filter:blur(16px) saturate(1.4);
+  border-bottom:1px solid rgba(15,23,42,.06);
+  padding:18px 30px;
+}
+.topbar h1{font-size:21px;letter-spacing:-.4px}
+.topbar .user-info{
+  background:linear-gradient(135deg,#0f2341,#0a1929);color:#fff;font-weight:600;
+  box-shadow:0 8px 18px rgba(10,25,41,.25);border:1px solid rgba(255,255,255,.06);
+}
+.content{padding:30px;background:transparent}
+.content > *{animation:fbRise .38s cubic-bezier(.2,.7,.3,1) both}
+@keyframes fbRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ── Stat cards ── */
+.stat-card{
+  border-radius:18px;padding:22px;border:1px solid var(--fb-line);
+  background:linear-gradient(180deg,#ffffff,#fbfdff);
+  box-shadow:var(--fb-shadow);
+}
+.stat-card::before{height:5px}
+.stat-card::after{
+  content:'';position:absolute;top:-40px;right:-40px;width:120px;height:120px;border-radius:50%;
+  background:radial-gradient(circle,rgba(249,115,22,.10),transparent 70%);
+  opacity:0;transition:opacity .3s;pointer-events:none;
+}
+.stat-card:hover{transform:translateY(-4px);box-shadow:var(--fb-shadow-lg);border-color:rgba(249,115,22,.30)}
+.stat-card:hover::after{opacity:1}
+.stat-card .stat-icon{
+  width:48px;height:48px;border-radius:14px;margin-bottom:14px;
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:linear-gradient(135deg,#f1f5f9,#e6edf5);
+  box-shadow:inset 0 0 0 1px rgba(15,23,42,.05);
+}
+.stat-card .stat-value{font-size:32px;font-weight:800;letter-spacing:-1px}
+.stat-card .stat-label{
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#7c8aa0;
+}
+
+/* ── Content cards ── */
+.card{
+  border-radius:18px;padding:24px 26px;border:1px solid var(--fb-line);
+  box-shadow:var(--fb-shadow);
+}
+.card h2{font-size:15px;letter-spacing:-.2px}
+.card h2::after{background:linear-gradient(to right,rgba(249,115,22,.35),transparent)}
+
+/* ── Tables ── */
+table{font-size:13px}
+th,td{padding:13px 16px}
+th{background:#f6f9fc;color:#64748b;border-bottom:1px solid var(--fb-line)}
+td{color:#3b4a5f}
+tr:hover td{background:#f8fbff}
+tr:last-child td{border-bottom:none}
+
+/* ── Buttons ── */
+.btn{border-radius:11px;font-weight:700}
+.btn-primary{box-shadow:0 6px 18px rgba(249,115,22,.28)}
+.btn-primary:hover{box-shadow:0 10px 26px rgba(249,115,22,.38)}
+.btn-secondary{
+  background:#fff;border:1px solid var(--fb-line);color:#475569;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+.btn-secondary:hover{background:#f8fafc;border-color:#d8e2ee}
+.btn-success{background:#e7f8ee;color:#067647}
+.btn-success:hover{background:#d3f3e0}
+.btn-danger{background:#fef3f2;color:#b42318}
+.btn-danger:hover{background:#fee4e2}
+
+/* ── Inputs & toolbar ── */
+.form-group input,.form-group textarea,.form-group select,
+.toolbar input,.toolbar select{border-radius:11px}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus,
+.toolbar input:focus,.toolbar select:focus{
+  border-color:var(--fb-orange);box-shadow:0 0 0 4px rgba(249,115,22,.12);
+}
+
+/* ── Empty & loading ── */
+.empty{
+  border-radius:18px;border:1px dashed #dbe4ee;
+  background:linear-gradient(180deg,#ffffff,#fbfdff);
+  box-shadow:var(--fb-shadow);
+}
+.spinner{border-width:3px;box-shadow:0 0 0 4px rgba(249,115,22,.06)}
+
+/* ── Modals ── */
+.modal{border-radius:22px;box-shadow:0 30px 90px rgba(10,25,41,.28)}
+.modal h2{letter-spacing:-.3px}
+.modal-tabs button.active{color:var(--fb-orange);border-bottom-color:var(--fb-orange)}
+
+/* ── Media & misc ── */
+.media-item{border-radius:14px;border:1px solid var(--fb-line);box-shadow:var(--fb-shadow)}
+.media-item:hover{box-shadow:var(--fb-shadow-lg);border-color:rgba(249,115,22,.5)}
+.media-item .thumb{border-radius:0}
+.progress-item .bar{box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
+.doc{border-radius:14px;box-shadow:var(--fb-shadow)}
+
+/* ── Login ── */
+.login-card{border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,.35)}
+.login-card .logo img{box-shadow:0 10px 28px rgba(249,115,22,.4)}
+.login-card h1{letter-spacing:-.4px}
+</style>
 </head>
 <body>
 <div id="app"></div>
@@ -428,7 +590,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = '9a53bbd';
+const BUILD = 'ui-premium-1';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
