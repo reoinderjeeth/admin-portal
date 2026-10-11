@@ -321,21 +321,36 @@ tr:hover td { background: #f8fafc; }
 .media-section { margin-bottom: 28px; }
 .media-section > h2 { margin-bottom: 14px; }
 
-/* ── Chat transcript ── */
-.chat-thread { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.05); margin-bottom: 16px; }
-.chat-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
-.chat-head .who { font-size: 14px; font-weight: 700; color: #0a1929; }
-.chat-head .sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
-.chat-msg { display: flex; margin-bottom: 10px; }
+/* ── Chat transcript (WhatsApp-style) ── */
+.chat-thread { background: #fbf7f1; border: 1px solid #e6dccb; border-radius: 16px; margin-bottom: 18px; overflow: hidden; box-shadow: 0 10px 28px rgba(15,35,65,.08); }
+.chat-thread.embedded { box-shadow: none; border-radius: 12px; margin-bottom: 0; }
+.chat-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,244,230,.8)); border-bottom: 1px solid #e6dccb; }
+.chat-head .who { font-size: 14.5px; font-weight: 800; color: #0a1929; }
+.chat-head .sub { font-size: 12px; color: #8a7f6d; margin-top: 2px; }
+.chat-head .head-meta { margin-left: auto; font-size: 11px; font-weight: 600; color: #8a7f6d; }
+.chat-avatar { width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #fff; letter-spacing: .4px; background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: 0 4px 12px rgba(249,115,22,.35); }
+.chat-avatar.sm { width: 28px; height: 28px; font-size: 11px; }
+.chat-avatar.ghost { visibility: hidden; }
+.chat-body { padding: 18px 16px; max-height: 460px; overflow-y: auto; background: radial-gradient(rgba(249,115,22,.07) 1px, transparent 1.5px) 0 0 / 22px 22px, linear-gradient(180deg, #fbf7f1, #f3ece1); }
+.chat-thread.embedded .chat-body { max-height: 420px; }
+.chat-body::-webkit-scrollbar { width: 8px; }
+.chat-body::-webkit-scrollbar-thumb { background: #e0d5c4; border-radius: 8px; }
+.chat-date { display: flex; justify-content: center; margin: 14px 0 10px; }
+.chat-date span { font-size: 11px; font-weight: 700; color: #8a7f6d; background: rgba(255,255,255,.9); padding: 4px 12px; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.chat-msg { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 3px; }
 .chat-msg.mine { justify-content: flex-end; }
-.chat-bubble {
-  max-width: 78%; padding: 10px 14px; border-radius: 14px;
-  background: #f1f5f9; color: #0f172a; font-size: 13px; line-height: 1.5; word-break: break-word;
-}
-.chat-msg.mine .chat-bubble { background: #0a1929; color: #fff; border-bottom-right-radius: 4px; }
+.chat-msg.tail { margin-bottom: 16px; }
+.chat-bubble { position: relative; max-width: 78%; padding: 8px 12px 6px; border-radius: 14px; background: #fff; border: 1px solid #e8e0d3; color: #0f172a; font-size: 13px; line-height: 1.5; word-break: break-word; box-shadow: 0 1px 1px rgba(15,35,65,.05); }
+.chat-msg.mine .chat-bubble { background: linear-gradient(180deg, #ffedd5, #fddfb6); border-color: #f6d3a1; border-bottom-right-radius: 4px; }
 .chat-msg:not(.mine) .chat-bubble { border-bottom-left-radius: 4px; }
-.chat-meta { font-size: 10px; color: #94a3b8; margin-top: 4px; display: flex; gap: 8px; align-items: center; }
-.chat-msg.mine .chat-meta { justify-content: flex-end; }
+.chat-msg.tail:not(.mine) .chat-bubble::after { content: ''; position: absolute; left: -6px; bottom: -1px; width: 12px; height: 12px; background: #fff; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.chat-msg.mine.tail .chat-bubble::after { content: ''; position: absolute; right: -6px; bottom: -1px; width: 12px; height: 12px; background: #fddfb6; clip-path: polygon(0 0, 100% 100%, 0 100%); }
+.chat-name { font-size: 11px; font-weight: 800; color: #ea580c; margin-bottom: 3px; }
+.chat-text { white-space: pre-wrap; }
+.chat-time { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 10px; color: #9a8f7d; margin-top: 3px; }
+.chat-msg.mine .chat-time { color: #95713a; }
+.chat-ticks { font-weight: 800; letter-spacing: -1px; }
+.chat-ticks.read { color: #f97316; }
 
 /* ── Key/value detail grid ── */
 .kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 16px; font-size: 13px; }
@@ -668,7 +683,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-5';
+const BUILD = 'ui-premium-6';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -722,23 +737,14 @@ function renderCommunication(comm, parties, opts) {
   return `
     ${M.length ? `
       <div class="sub-head">Text messages (${M.length})</div>
-      <div class="chat-thread" style="box-shadow:none;border:1px solid #e2e8f0">
-        ${M.map(m => {
-          const p = parties[m.sender_id];
-          const mine = m.sender_id === (opts.viewerId || null);
-          return `<div class="chat-msg ${mine ? 'mine' : ''}">
-            <div>
-              <div class="chat-bubble">${esc(m.content)}</div>
-              <div class="chat-meta">
-                <span><strong>${esc(p?.name || 'Unknown')}</strong></span>
-                ${roleBadge(p)}
-                <span>${fmtDateTime(m.created_at)}</span>
-                <span>${m.read_at ? 'read' : 'unread'}</span>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>` : ''}
+      ${chatThreadHTML({
+        ref: 'Text messages',
+        msgs: M.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+        names: Object.fromEntries(Object.entries(parties || {}).map(([id, p]) => [id, (p && p.name) || 'Unknown'])),
+        adminId: opts.viewerId || null,
+        sub: [...new Set(M.map(m => (parties[m.sender_id] && parties[m.sender_id].name) || 'Unknown'))].join(' ↔ '),
+        showHeader: false, embedded: true
+      })}` : ''}
 
     ${C.length ? `
       <div class="sub-head">Voice &amp; video calls (${C.length})</div>
@@ -2123,13 +2129,7 @@ window.viewJob = async function(jobId) {
       </div>
 
       <div class="pane" id="pane-messages" style="display:none">
-        ${M.length ? M.map(m => `
-          <div class="chat-msg ${m.sender_id === state.session.user.id ? 'mine' : ''}">
-            <div>
-              <div class="chat-bubble">${esc(m.content)}</div>
-              <div class="chat-meta"><span>${esc(names[m.sender_id] || 'Unknown')}</span><span>${fmtDateTime(m.created_at)}</span><span>${m.read_at ? 'read' : 'unread'}</span></div>
-            </div>
-          </div>`).join('') : '<div class="empty">No messages on this job</div>'}
+        ${M.length ? chatThreadHTML({ ref: job.reference_number || 'Conversation', msgs: M.slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at)), names, adminId: state.session.user.id, jobId: job.id || '', sub: [...new Set(M.map(m => names[m.sender_id] || 'Unknown'))].join(' ↔ '), showHeader: false, embedded: true }) : '<div class="empty">No messages on this job</div>'}
       </div>
 
       <div class="pane" id="pane-quotes" style="display:none">
@@ -2879,25 +2879,7 @@ async function loadMessages(el) {
           msgs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
           const ref = jobs[jobId] || jobId.slice(0, 8);
           const senders = [...new Set(msgs.map(m => names[m.sender_id] || 'Unknown'))];
-          return `<div class="chat-thread" data-job="${esc(jobId)}">
-            <div class="chat-head">
-              <div>
-                <div class="who">${esc(ref)}</div>
-                <div class="sub">${esc(senders.join(' ↔ '))} · ${msgs.length} message${msgs.length === 1 ? '' : 's'}</div>
-              </div>
-            </div>
-            ${msgs.map(m => `
-              <div class="chat-msg ${m.sender_id === state.session.user.id ? 'mine' : ''}">
-                <div>
-                  <div class="chat-bubble">${esc(m.content)}</div>
-                  <div class="chat-meta">
-                    <span>${esc(names[m.sender_id] || 'Unknown')}</span>
-                    <span>${fmtDateTime(m.created_at)}</span>
-                    <span>${m.read_at ? 'read' : 'unread'}</span>
-                  </div>
-                </div>
-              </div>`).join('')}
-          </div>`;
+          return chatThreadHTML({ ref, msgs, names, adminId: state.session.user.id, jobId, sub: senders.join(' ↔ ') });
         }).join('')}
       </div>`;
 
@@ -3140,6 +3122,53 @@ function fmtDateTime(iso) {
   if (!iso) return '—';
   try { return new Date(iso).toLocaleString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
   catch(_) { return iso; }
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }); }
+  catch(_) { return ''; }
+}
+
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+}
+
+// Renders a WhatsApp-style conversation transcript. Used by the Messages page
+// and the job-detail modal so both read identically.
+function chatThreadHTML({ ref = 'Conversation', msgs = [], names = {}, adminId = null, jobId = '', sub = '', showHeader = true, embedded = false, dates = true } = {}) {
+  const rows = [];
+  let lastDate = '';
+  msgs.forEach((m, i) => {
+    const day = fmtDate(m.created_at);
+    if (dates && day !== lastDate) { rows.push(`<div class="chat-date"><span>${esc(day)}</span></div>`); lastDate = day; }
+    const mine = !!adminId && m.sender_id === adminId;
+    const next = msgs[i + 1];
+    const tail = !next || next.sender_id !== m.sender_id || fmtDate(next.created_at) !== day;
+    const showAvatar = !mine && tail;
+    rows.push(`<div class="chat-msg ${mine ? 'mine' : ''}${tail ? ' tail' : ''}">
+      ${mine ? '' : `<div class="chat-avatar sm ${showAvatar ? '' : 'ghost'}">${esc(initials(names[m.sender_id] || '?'))}</div>`}
+      <div class="chat-bubble">
+        ${mine ? '' : `<div class="chat-name">${esc(names[m.sender_id] || 'Unknown')}</div>`}
+        <div class="chat-text">${esc(m.content)}</div>
+        <div class="chat-time"><span>${fmtTime(m.created_at)}</span>${mine ? `<span class="chat-ticks ${m.read_at ? 'read' : ''}">${m.read_at ? '✓✓' : '✓'}</span>` : ''}</div>
+      </div>
+    </div>`);
+  });
+
+  const head = showHeader ? `
+    <div class="chat-head">
+      <div class="chat-avatar">${esc(initials(ref))}</div>
+      <div>
+        <div class="who">${esc(ref)}</div>
+        <div class="sub">${esc(sub)}</div>
+      </div>
+      <div class="head-meta">${msgs.length} message${msgs.length === 1 ? '' : 's'}</div>
+    </div>` : '';
+
+  return `<div class="chat-thread${embedded ? ' embedded' : ''}" data-job="${esc(jobId)}">${head}<div class="chat-body">${rows.join('')}</div></div>`;
 }
 
 function callDuration(c) {
