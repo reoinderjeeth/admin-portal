@@ -751,7 +751,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-13';
+const BUILD = 'ui-premium-14';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -3110,8 +3110,18 @@ function callsRender() {
       const ia = CALL_ORDER.indexOf(a); const ib = CALL_ORDER.indexOf(b);
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
+    const totalSecs = Object.values(talk).reduce((a, b) => a + b, 0);
     trail = '<span class="crumb-cur">Calls</span>';
-    body = `<p class="media-hint">Choose a call status, then open a call to view its job.</p>
+    body = `<div class="card" style="margin-bottom:20px">
+        <h2>Call Summary</h2>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value" style="color:#0a1929">${s.all.length}</div><div class="stat-label">Total Calls</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#2e7d32">${counts['ended'] || 0}</div><div class="stat-label">Connected</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#dc2626">${counts['missed'] || 0}</div><div class="stat-label">Missed</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#e65100">${fmtDuration(totalSecs)}</div><div class="stat-label">Talk Time</div></div>
+        </div>
+      </div>
+      <p class="media-hint">Choose a status, then open a call.</p>
       <div class="media-cats">${statuses.map(st => `<button class="media-cat" onclick="callsGo('status','${jsq(st)}')">
         <span class="mc-ic" style="background:${callColor(st)}">${PHONE}</span>
         <span class="mc-txt"><span class="mc-title">${esc(callLabel(st))}</span><span class="mc-count">${counts[st]} call${counts[st] === 1 ? '' : 's'}${talk[st] ? ' · ' + fmtDuration(talk[st]) : ''}</span></span>
