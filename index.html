@@ -670,6 +670,16 @@ tr:hover td{background:#d9e8fb}
 
 /* Inputs sit slightly brighter than the tinted panels */
 .form-group input,.form-group textarea,.form-group select,.toolbar input,.toolbar select{background:#fbfdff}
+
+/* Chat chrome: neutral cool canvas — orange is reserved for bubbles/accents */
+.chat-thread{ background:#eef3f9; border-color:#d6e0ee; }
+.chat-head{ background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(238,244,251,.9)); border-bottom-color:#d6e0ee; }
+.chat-head .sub,.chat-head .head-meta{ color:#64748b; }
+.chat-body{ background: radial-gradient(rgba(37,99,235,.06) 1px, transparent 1.5px) 0 0 / 22px 22px, linear-gradient(180deg,#f3f7fc,#e7eef7); }
+.chat-body::-webkit-scrollbar-thumb{ background:#c9d5e4; }
+.chat-date span{ color:#64748b; }
+.chat-bubble{ border-color:#e2e8f0; }
+.chat-time{ color:#94a3b8; }
 </style>
 </head>
 <body>
@@ -683,7 +693,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-6';
+const BUILD = 'ui-premium-7';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
