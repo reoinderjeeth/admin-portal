@@ -728,6 +728,12 @@ tr:hover td{background:#d9e8fb}
 .folder-row{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:12px 14px; margin-bottom:8px; border-radius:14px; border:1px solid #d7e1ee; background:linear-gradient(180deg,#f5f9fd,#edf3fb); cursor:pointer; font:inherit; }
 .folder-row:hover{ border-color:rgba(249,115,22,.45); background:rgba(37,99,235,.04); }
 
+/* Calls grouped by job (inside a status) */
+.call-group{ margin-bottom:20px; }
+.call-group-head{ display:flex; align-items:center; gap:9px; margin:0 2px 9px; font-size:13px; font-weight:800; color:#0a1929; }
+.call-group-head .cg-count{ font-size:11.5px; font-weight:600; color:#7c8aa0; }
+.call-group-head .btn{ margin-left:auto; }
+
 /* Quotes drill-down (status → quotes) */
 .quote-card{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:12px 14px; margin-bottom:8px; border-radius:14px; border:1px solid #d7e1ee; background:linear-gradient(180deg,#f5f9fd,#edf3fb); cursor:pointer; font:inherit; }
 .quote-card:hover{ border-color:rgba(249,115,22,.45); background:rgba(37,99,235,.04); }
@@ -751,7 +757,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-15';
+const BUILD = 'ui-premium-16';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -3082,7 +3088,7 @@ async function loadCalls(el) {
   try {
     const [calls, names, jobs] = await Promise.all([fetchCalls(), fetchNameMap(), fetchJobNameMap()]);
     if (!calls.length) { el.innerHTML = rlsHint('calls'); return; }
-    window._calls = { el, all: calls, names, jobs, view: 'root', jobId: null };
+    window._calls = { el, all: calls, names, jobs, view: 'root', status: null };
     callsRender();
   } catch (e) {
     el.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
@@ -3097,57 +3103,67 @@ function callsRender() {
   const PHONE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
   const lastOf = arr => Math.max.apply(null, arr.map(c => +new Date(c.started_at || c.created_at || 0)));
 
-  let body = '', trail = '', backBtn = '', extra = '';
+  let body = '', trail = '', backBtn = '';
 
   if (s.view === 'root') {
-    const groups = {};
-    s.all.forEach(c => { const k = c.job_id || ''; (groups[k] = groups[k] || []).push(c); });
-    const jobIds = Object.keys(groups).sort((a, b) => lastOf(groups[b]) - lastOf(groups[a]));
-    const totalSecs = s.all.reduce((t, c) => t + callDuration(c), 0);
+    const counts = {};
+    const talk = {};
+    s.all.forEach(c => {
+      const k = c.status || 'ended';
+      counts[k] = (counts[k] || 0) + 1;
+      talk[k] = (talk[k] || 0) + callDuration(c);
+    });
+    const statuses = Object.keys(counts).sort((a, b) => {
+      const ia = CALL_ORDER.indexOf(a); const ib = CALL_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    const totalSecs = Object.values(talk).reduce((a, b) => a + b, 0);
     trail = '<span class="crumb-cur">Calls</span>';
     body = `<div class="card" style="margin-bottom:20px">
         <h2>Call Summary</h2>
         <div class="stats-grid">
           <div class="stat-card"><div class="stat-value" style="color:#0a1929">${s.all.length}</div><div class="stat-label">Total Calls</div></div>
-          <div class="stat-card"><div class="stat-value" style="color:#2e7d32">${s.all.filter(c => c.status === 'ended').length}</div><div class="stat-label">Connected</div></div>
-          <div class="stat-card"><div class="stat-value" style="color:#dc2626">${s.all.filter(c => c.status === 'missed').length}</div><div class="stat-label">Missed</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#2e7d32">${counts['ended'] || 0}</div><div class="stat-label">Connected</div></div>
+          <div class="stat-card"><div class="stat-value" style="color:#dc2626">${counts['missed'] || 0}</div><div class="stat-label">Missed</div></div>
           <div class="stat-card"><div class="stat-value" style="color:#e65100">${fmtDuration(totalSecs)}</div><div class="stat-label">Talk Time</div></div>
         </div>
       </div>
-      <p class="media-hint">Calls are grouped by job. Pick a job to see its calls.</p>
-      <div class="media-cats">${jobIds.map(jid => {
-        const list = groups[jid];
-        const secs = list.reduce((t, c) => t + callDuration(c), 0);
-        const ref = jid ? (s.jobs[jid] || jid.slice(0, 8)) : 'No linked job';
-        const sub = `${list.length} call${list.length === 1 ? '' : 's'}${secs ? ' · ' + fmtDuration(secs) : ''} · last ${fmtDate(new Date(lastOf(list)).toISOString())}`;
-        const inner = `<span class="mc-ic" style="background:${jid ? 'linear-gradient(135deg,#60a5fa,#2563eb)' : 'linear-gradient(135deg,#94a3b8,#64748b)'}">${PHONE}</span>
-          <span class="mc-txt"><span class="mc-title">${esc(ref)}</span><span class="mc-count">${sub}</span></span>
-          ${jid ? `<span class="mc-go">${CHEV}</span>` : ''}`;
-        return jid
-          ? `<button class="media-cat" onclick="callsGo('job','${jsq(jid)}')">${inner}</button>`
-          : `<div class="media-cat" style="cursor:default">${inner}</div>`;
-      }).join('')}</div>`;
+      <p class="media-hint">Choose a status; its calls are then grouped by job.</p>
+      <div class="media-cats">${statuses.map(st => `<button class="media-cat" onclick="callsGo('status','${jsq(st)}')">
+        <span class="mc-ic" style="background:${callColor(st)}">${PHONE}</span>
+        <span class="mc-txt"><span class="mc-title">${esc(callLabel(st))}</span><span class="mc-count">${counts[st]} call${counts[st] === 1 ? '' : 's'}${talk[st] ? ' · ' + fmtDuration(talk[st]) : ''}</span></span>
+        <span class="mc-go">${CHEV}</span>
+      </button>`).join('')}</div>`;
   } else {
-    const list = s.all.filter(c => (c.job_id || '') === (s.jobId || ''))
-      .slice().sort((a, b) => new Date(b.started_at || b.created_at || 0) - new Date(a.started_at || a.created_at || 0));
-    const ref = s.jobId ? (s.jobs[s.jobId] || s.jobId.slice(0, 8)) : 'No linked job';
     backBtn = `<button class="crumb-back" onclick="callsGo('root')">${BACK}</button>`;
-    trail = `<button class="crumb-link" onclick="callsGo('root')">Calls</button><span class="crumb-sep">/</span><span class="crumb-cur">${esc(ref)}</span>`;
-    if (s.jobId) extra = `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="viewJob('${jsq(s.jobId)}')">Open Job</button>`;
-    body = list.map(c => `<div class="quote-card" style="cursor:default">
+    trail = `<button class="crumb-link" onclick="callsGo('root')">Calls</button><span class="crumb-sep">/</span><span class="crumb-cur">${esc(callLabel(s.status))}</span>`;
+    const list = s.all.filter(c => (c.status || 'ended') === s.status)
+      .slice().sort((a, b) => new Date(b.started_at || b.created_at || 0) - new Date(a.started_at || a.created_at || 0));
+    const groups = {};
+    list.forEach(c => { const k = c.job_id || ''; (groups[k] = groups[k] || []).push(c); });
+    const jobIds = Object.keys(groups).sort((a, b) => lastOf(groups[b]) - lastOf(groups[a]));
+    body = jobIds.map(jid => {
+      const ref = jid ? (s.jobs[jid] || jid.slice(0, 8)) : 'No linked job';
+      const openBtn = jid ? `<button class="btn btn-sm btn-primary" onclick="viewJob('${jsq(jid)}')">Open Job</button>` : '';
+      const rows = groups[jid].map(c => `<div class="quote-card" style="cursor:default">
         <span class="mc-ic" style="width:34px;height:34px;border-radius:9px;background:${callColor(c.status)}">${PHONE}</span>
         <span class="qc-main"><span class="qc-title">${esc(c.caller_name || s.names[c.caller_id] || 'Unknown')} → ${esc(s.names[c.callee_id] || '—')}</span><span class="qc-sub">${fmtDuration(callDuration(c))} · ${esc(c.channel_name || '—')} · ${fmtDateTime(c.started_at || c.created_at)}</span></span>
         <span class="badge ${statusBadge(c.status)}">${esc(c.status)}</span>
-      </div>`).join('') || '<div class="empty">No calls for this job.</div>';
+      </div>`).join('');
+      return `<div class="call-group">
+        <div class="call-group-head">${esc(ref)}<span class="cg-count">${groups[jid].length} call${groups[jid].length === 1 ? '' : 's'}</span>${openBtn}</div>
+        ${rows}
+      </div>`;
+    }).join('') || '<div class="empty">No calls with this status.</div>';
   }
 
-  s.el.innerHTML = `<div class="media-bar">${backBtn}<div class="crumb">${trail}</div>${extra}</div>${body}`;
+  s.el.innerHTML = `<div class="media-bar">${backBtn}<div class="crumb">${trail}</div></div>${body}`;
 }
 
-window.callsGo = function(view, jobId) {
+window.callsGo = function(view, status) {
   const s = window._calls;
   if (!s) return;
-  s.view = view; s.jobId = jobId || null;
+  s.view = view; s.status = status || null;
   callsRender();
 };
 
