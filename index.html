@@ -751,7 +751,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-12';
+const BUILD = 'ui-premium-13';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -3065,37 +3065,83 @@ async function loadMessages(el) {
 }
 
 // ── Calls ──
+const CALL_LABEL = { ended: 'Connected', ongoing: 'Ongoing', ringing: 'Ringing', missed: 'Missed', declined: 'Declined', cancelled: 'Cancelled' };
+const CALL_ORDER = ['ongoing', 'ringing', 'ended', 'missed', 'declined', 'cancelled'];
+function callLabel(s) { return CALL_LABEL[s] || statusLabel(s); }
+function callColor(s) {
+  switch (s) {
+    case 'ended': return 'linear-gradient(135deg,#34d399,#059669)';
+    case 'ongoing': return 'linear-gradient(135deg,#60a5fa,#2563eb)';
+    case 'ringing': return 'linear-gradient(135deg,#fb923c,#ea580c)';
+    case 'missed': case 'declined': case 'cancelled': return 'linear-gradient(135deg,#f87171,#dc2626)';
+    default: return 'linear-gradient(135deg,#94a3b8,#64748b)';
+  }
+}
+
 async function loadCalls(el) {
   try {
     const [calls, names, jobs] = await Promise.all([fetchCalls(), fetchNameMap(), fetchJobNameMap()]);
     if (!calls.length) { el.innerHTML = rlsHint('calls'); return; }
-    const totalSecs = calls.reduce((s, c) => s + callDuration(c), 0);
-    el.innerHTML = `
-      <div class="card" style="margin-bottom:20px">
-        <h2>Call Summary</h2>
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-value" style="color:#0a1929">${calls.length}</div><div class="stat-label">Total Calls</div></div>
-          <div class="stat-card"><div class="stat-value" style="color:#2e7d32">${calls.filter(c => c.status === 'ended').length}</div><div class="stat-label">Connected</div></div>
-          <div class="stat-card"><div class="stat-value" style="color:#dc2626">${calls.filter(c => c.status === 'missed').length}</div><div class="stat-label">Missed</div></div>
-          <div class="stat-card"><div class="stat-value" style="color:#e65100">${fmtDuration(totalSecs)}</div><div class="stat-label">Talk Time</div></div>
-        </div>
-      </div>
-      <div class="card"><div class="table-wrap"><table>
-        <thead><tr><th>Job</th><th>Caller</th><th>Callee</th><th>Status</th><th>Duration</th><th>Channel</th><th>Started</th></tr></thead>
-        <tbody>${calls.map(c => `<tr>
-          <td><strong>${esc(jobs[c.job_id] || '—')}</strong></td>
-          <td>${esc(c.caller_name || names[c.caller_id] || '—')}</td>
-          <td>${esc(names[c.callee_id] || '—')}</td>
-          <td><span class="badge ${c.status === 'ended' ? 'badge-green' : c.status === 'ongoing' ? 'badge-blue' : c.status === 'missed' ? 'badge-red' : 'badge-gray'}">${esc(c.status)}</span></td>
-          <td>${fmtDuration(callDuration(c))}</td>
-          <td><code style="font-size:11px;color:#64748b">${esc(c.channel_name || '—')}</code></td>
-          <td>${fmtDateTime(c.started_at || c.created_at)}</td>
-        </tr>`).join('')}</tbody>
-      </table></div></div>`;
+    window._calls = { el, all: calls, names, jobs, view: 'root', status: null };
+    callsRender();
   } catch (e) {
     el.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
   }
 }
+
+function callsRender() {
+  const s = window._calls;
+  if (!s) return;
+  const CHEV = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  const BACK = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+  const PHONE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+
+  let body = '', trail = '', backBtn = '';
+
+  if (s.view === 'root') {
+    const counts = {};
+    const talk = {};
+    s.all.forEach(c => {
+      const k = c.status || 'ended';
+      counts[k] = (counts[k] || 0) + 1;
+      talk[k] = (talk[k] || 0) + callDuration(c);
+    });
+    const statuses = Object.keys(counts).sort((a, b) => {
+      const ia = CALL_ORDER.indexOf(a); const ib = CALL_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    trail = '<span class="crumb-cur">Calls</span>';
+    body = `<p class="media-hint">Choose a call status, then open a call to view its job.</p>
+      <div class="media-cats">${statuses.map(st => `<button class="media-cat" onclick="callsGo('status','${jsq(st)}')">
+        <span class="mc-ic" style="background:${callColor(st)}">${PHONE}</span>
+        <span class="mc-txt"><span class="mc-title">${esc(callLabel(st))}</span><span class="mc-count">${counts[st]} call${counts[st] === 1 ? '' : 's'}${talk[st] ? ' · ' + fmtDuration(talk[st]) : ''}</span></span>
+        <span class="mc-go">${CHEV}</span>
+      </button>`).join('')}</div>`;
+  } else {
+    backBtn = `<button class="crumb-back" onclick="callsGo('root')">${BACK}</button>`;
+    trail = `<button class="crumb-link" onclick="callsGo('root')">Calls</button><span class="crumb-sep">/</span><span class="crumb-cur">${esc(callLabel(s.status))}</span>`;
+    const list = s.all.filter(c => (c.status || 'ended') === s.status);
+    body = list.map(c => {
+      const onclk = c.job_id ? `onclick="viewJob('${c.job_id}')"` : '';
+      const cursor = c.job_id ? '' : ' style="cursor:default"';
+      return `<div class="quote-card"${cursor} ${onclk}>
+        <span class="mc-ic" style="width:34px;height:34px;border-radius:9px;background:${callColor(c.status)}">${PHONE}</span>
+        <span class="qc-main"><span class="qc-title">${esc(c.caller_name || s.names[c.caller_id] || 'Unknown')} → ${esc(s.names[c.callee_id] || '—')}</span><span class="qc-sub">${esc(s.jobs[c.job_id] || 'No linked job')} · ${fmtDuration(callDuration(c))} · ${esc(c.channel_name || '—')} · ${fmtDateTime(c.started_at || c.created_at)}</span></span>
+        <span class="badge ${statusBadge(c.status)}">${esc(c.status)}</span>
+        ${c.job_id ? `<span class="qc-go">${CHEV}</span>` : ''}
+      </div>`;
+    }).join('') || '<div class="empty">No calls with this status.</div>';
+  }
+
+  s.el.innerHTML = `<div class="media-bar">${backBtn}<div class="crumb">${trail}</div></div>${body}`;
+}
+
+window.callsGo = function(view, status) {
+  const s = window._calls;
+  if (!s) return;
+  s.view = view; s.status = status || null;
+  callsRender();
+};
 
 // ── Reviews ──
 async function loadReviews(el) {
