@@ -751,7 +751,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-11';
+const BUILD = 'ui-premium-12';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -2290,9 +2290,9 @@ function statusLabel(s) {
 function statusColor(s) {
   switch (s) {
     case 'accepted': case 'completed': case 'paid': return 'linear-gradient(135deg,#34d399,#059669)';
-    case 'rejected': case 'cancelled': return 'linear-gradient(135deg,#f87171,#dc2626)';
+    case 'rejected': case 'cancelled': case 'overdue': return 'linear-gradient(135deg,#f87171,#dc2626)';
     case 'pending': return 'linear-gradient(135deg,#fb923c,#ea580c)';
-    case 'sent': return 'linear-gradient(135deg,#60a5fa,#2563eb)';
+    case 'sent': case 'issued': return 'linear-gradient(135deg,#60a5fa,#2563eb)';
     default: return 'linear-gradient(135deg,#94a3b8,#64748b)';
   }
 }
@@ -2668,21 +2668,62 @@ async function loadInvoices(el) {
   try {
     const invoices = await fetchInvoices();
     if (!invoices.length) { el.innerHTML = '<div class="empty">No invoices found</div>'; return; }
-    el.innerHTML = `<div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Invoice #</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Paid At</th><th>Created</th><th></th></tr></thead>
-      <tbody>${invoices.map(inv => `<tr>
-        <td><strong>${esc(inv.invoice_number || '—')}</strong></td>
-        <td>${esc(inv.profiles?.full_name || '—')}</td>
-        <td>${(inv.items || []).length}</td>
-        <td><strong>R${(inv.total || 0).toFixed(2)}</strong></td>
-        <td><span class="badge ${inv.status === 'paid' ? 'badge-green' : inv.status === 'issued' ? 'badge-blue' : inv.status === 'cancelled' ? 'badge-red' : 'badge-gray'}">${esc(inv.status)}</span></td>
-        <td>${inv.paid_at ? fmtDate(inv.paid_at) : '—'}</td>
-        <td>${fmtDate(inv.created_at)}</td>
-        <td><button class="btn btn-sm btn-primary" onclick="viewInvoice('${inv.id}')">View</button></td>
-      </tr>`).join('')}</tbody>
-    </table></div></div>`;
+    window._invoices = { el, all: invoices, view: 'root', status: null };
+    invoicesRender();
   } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
+
+const INVOICE_ORDER = ['pending', 'draft', 'issued', 'sent', 'paid', 'overdue', 'cancelled'];
+
+function invoicesRender() {
+  const s = window._invoices;
+  if (!s) return;
+  const CHEV = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  const BACK = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+  const RECEIPT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1z"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>';
+
+  let body = '', trail = '', backBtn = '';
+
+  if (s.view === 'root') {
+    const counts = {};
+    s.all.forEach(inv => { const k = inv.status || 'pending'; counts[k] = (counts[k] || 0) + 1; });
+    const statuses = Object.keys(counts).sort((a, b) => {
+      const ia = INVOICE_ORDER.indexOf(a); const ib = INVOICE_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    const sum = st => s.all.filter(inv => (inv.status || 'pending') === st).reduce((t, inv) => t + (inv.total || 0), 0);
+    trail = '<span class="crumb-cur">Invoices</span>';
+    body = `<p class="media-hint">Choose a status, then open an invoice.</p>
+      <div class="media-cats">${statuses.map(st => `<button class="media-cat" onclick="invoicesGo('status','${jsq(st)}')">
+        <span class="mc-ic" style="background:${statusColor(st)}">${RECEIPT}</span>
+        <span class="mc-txt"><span class="mc-title">${esc(statusLabel(st))}</span><span class="mc-count">${counts[st]} invoice${counts[st] === 1 ? '' : 's'} · R${sum(st).toFixed(2)}</span></span>
+        <span class="mc-go">${CHEV}</span>
+      </button>`).join('')}</div>`;
+  } else {
+    backBtn = `<button class="crumb-back" onclick="invoicesGo('root')">${BACK}</button>`;
+    trail = `<button class="crumb-link" onclick="invoicesGo('root')">Invoices</button><span class="crumb-sep">/</span><span class="crumb-cur">${esc(statusLabel(s.status))}</span>`;
+    const list = s.all.filter(inv => (inv.status || 'pending') === s.status);
+    body = list.map(inv => {
+      const n = (inv.items || []).length;
+      return `<button class="quote-card" onclick="viewInvoice('${inv.id}')">
+        <span class="qc-num">${esc(inv.invoice_number || '—')}</span>
+        <span class="qc-main"><span class="qc-title">${esc(inv.profiles?.full_name || 'Untitled invoice')}</span><span class="qc-sub">${n} item${n === 1 ? '' : 's'} · ${fmtDate(inv.created_at)}${inv.paid_at ? ' · paid ' + fmtDate(inv.paid_at) : ''}</span></span>
+        <span class="qc-total">R${(inv.total || 0).toFixed(2)}</span>
+        <span class="badge ${statusBadge(inv.status)}">${esc(inv.status)}</span>
+        <span class="qc-go">${CHEV}</span>
+      </button>`;
+    }).join('') || '<div class="empty">No invoices with this status.</div>';
+  }
+
+  s.el.innerHTML = `<div class="media-bar">${backBtn}<div class="crumb">${trail}</div></div>${body}`;
+}
+
+window.invoicesGo = function(view, status) {
+  const s = window._invoices;
+  if (!s) return;
+  s.view = view; s.status = status || null;
+  invoicesRender();
+};
 
 let _invoice = null;
 
