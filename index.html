@@ -590,7 +590,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-1';
+const BUILD = 'ui-premium-2';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -1256,6 +1256,7 @@ async function renderUserTable(users) {
         <td>
           <div class="row-actions">
             <button class="btn btn-sm btn-primary" onclick="editUser('${u.id}')">Edit</button>
+            <button class="btn btn-sm btn-secondary" onclick="setUserPassword('${u.id}')">Password</button>
             <button class="btn btn-sm ${active ? 'btn-secondary' : 'btn-success'}" onclick="toggleUserActive('${u.id}',${!active})">
               ${active ? 'Deactivate' : 'Reactivate'}
             </button>
@@ -1365,6 +1366,114 @@ window.saveUser = async function(id, isTech) {
   } catch (e) {
     toast('Error: ' + e.message);
     btn.disabled = false; btn.textContent = 'Save Changes';
+  }
+};
+
+// --- Set / reset a user's password -------------------------------------
+// Supabase stores passwords as one-way bcrypt hashes, so an existing password
+// can never be shown. The honest workflow is to issue a new temporary one and
+// reveal THAT to the admin. Runs through the admin-manage-user edge function,
+// which holds the service-role key and verifies the caller is an admin.
+window.setUserPassword = async function(id) {
+  const { data: u } = await _supabase.from('profiles').select('full_name,email').eq('id', id).maybeSingle();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'pw-modal';
+  overlay.innerHTML = `
+    <div class="modal" style="width:480px">
+      <h2>Set a New Password</h2>
+      <p style="font-size:13px;color:#475569;margin-bottom:14px">
+        For <strong>${esc(u?.full_name || 'this user')}</strong>${u?.email ? ` (${esc(u.email)})` : ''}
+      </p>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:#9a3412;line-height:1.6">
+        Existing passwords <strong>cannot be viewed</strong> — they are stored as one-way hashes.
+        Setting a new one lets you hand the user a fresh temporary password.
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#475569;margin-bottom:10px">
+        <input type="radio" name="pw-mode" value="generate" checked onchange="pwSetMode('generate')"> Generate a strong password
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#475569;margin-bottom:10px">
+        <input type="radio" name="pw-mode" value="custom" onchange="pwSetMode('custom')"> Enter a custom password
+      </label>
+      <div class="form-group" id="pw-custom-wrap" style="display:none">
+        <input id="pw-custom" type="text" placeholder="At least 8 characters" autocomplete="off">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#475569;margin:4px 0 6px">
+        <input type="checkbox" id="pw-mustchange" checked> Require a change on next sign-in
+      </label>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closePwModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitUserPassword('${id}')">Set Password</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closePwModal(); });
+};
+
+window.pwSetMode = function(mode) {
+  const w = document.getElementById('pw-custom-wrap');
+  if (w) w.style.display = mode === 'custom' ? '' : 'none';
+};
+
+window.closePwModal = function() {
+  const m = document.getElementById('pw-modal');
+  if (m) m.remove();
+};
+
+window.submitUserPassword = async function(id) {
+  const btn = document.querySelector('#pw-modal .btn-primary');
+  const mode = (document.querySelector('input[name="pw-mode"]:checked') || {}).value || 'generate';
+  const custom = (document.getElementById('pw-custom')?.value || '').trim();
+  const mustChange = document.getElementById('pw-mustchange').checked;
+  if (mode === 'custom' && custom.length < 8) { toast('Password must be at least 8 characters'); return; }
+
+  btn.disabled = true; btn.textContent = 'Setting...';
+  try {
+    const payload = { userId: id, action: 'set_password', mustChange };
+    if (mode === 'custom') payload.newPassword = custom;
+    const { data, error } = await _supabase.functions.invoke('admin-manage-user', { body: payload });
+    if (error) {
+      let msg = error.message || 'Request failed';
+      try { const ctx = await error.context?.json?.(); if (ctx?.error) msg = ctx.error; } catch (_) {}
+      throw new Error(msg);
+    }
+    showPwResult(data);
+  } catch (e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Set Password';
+  }
+};
+
+window.showPwResult = function(data) {
+  const m = document.getElementById('pw-modal');
+  if (!m) return;
+  m.innerHTML = `
+    <div class="modal" style="width:480px">
+      <h2>New Password Set</h2>
+      <p style="font-size:13px;color:#475569;margin-bottom:14px">
+        Share this with <strong>${esc(data.name || 'the user')}</strong>${data.email ? ` (${esc(data.email)})` : ''}.
+        It will not be shown again.
+      </p>
+      <div style="display:flex;gap:8px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px">
+        <code id="pw-value" style="flex:1;font-size:16px;font-weight:700;color:#0a1929;letter-spacing:.5px;word-break:break-all">${esc(data.password || '')}</code>
+        <button class="btn btn-sm btn-secondary" onclick="copyPwResult()">Copy</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="closePwModal()">Done</button>
+      </div>
+    </div>`;
+};
+
+window.copyPwResult = function() {
+  const el = document.getElementById('pw-value');
+  if (!el) return;
+  const text = el.textContent;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast('Password copied'), () => toast('Copy failed'));
+  } else {
+    const r = document.createRange(); r.selectNode(el);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    try { document.execCommand('copy'); toast('Password copied'); } catch (_) { toast('Copy failed'); }
   }
 };
 
