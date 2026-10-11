@@ -727,6 +727,17 @@ tr:hover td{background:#d9e8fb}
 .media-cat:hover .mc-go{ color:#ea580c; }
 .folder-row{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:12px 14px; margin-bottom:8px; border-radius:14px; border:1px solid #d7e1ee; background:linear-gradient(180deg,#f5f9fd,#edf3fb); cursor:pointer; font:inherit; }
 .folder-row:hover{ border-color:rgba(249,115,22,.45); background:rgba(37,99,235,.04); }
+
+/* Quotes drill-down (status → quotes) */
+.quote-card{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:12px 14px; margin-bottom:8px; border-radius:14px; border:1px solid #d7e1ee; background:linear-gradient(180deg,#f5f9fd,#edf3fb); cursor:pointer; font:inherit; }
+.quote-card:hover{ border-color:rgba(249,115,22,.45); background:rgba(37,99,235,.04); }
+.qc-num{ font-size:11.5px; font-weight:800; color:#334155; background:#e8eef7; padding:4px 9px; border-radius:8px; flex:0 0 auto; }
+.qc-main{ display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
+.qc-title{ font-size:13.5px; font-weight:700; color:#0a1929; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.qc-sub{ font-size:11.5px; color:#7c8aa0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.qc-total{ font-size:13.5px; font-weight:800; color:#0a1929; flex:0 0 auto; }
+.qc-go{ color:#94a3b8; display:flex; flex:0 0 auto; }
+.quote-card:hover .qc-go{ color:#ea580c; }
 </style>
 </head>
 <body>
@@ -740,7 +751,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-10';
+const BUILD = 'ui-premium-11';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -2266,21 +2277,74 @@ async function loadQuotes(el) {
   try {
     const quotes = await fetchQuotes();
     if (!quotes.length) { el.innerHTML = '<div class="empty">No quotes found</div>'; return; }
-    el.innerHTML = `<div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Quote #</th><th>Title</th><th>Customer</th><th>Total</th><th>Photos</th><th>Status</th><th>Created</th><th></th></tr></thead>
-      <tbody>${quotes.map(q => `<tr>
-        <td><strong>${esc(q.quote_number || '—')}</strong></td>
-        <td>${esc(q.title || '—')}</td>
-        <td>${esc(q.profiles?.full_name || '—')}</td>
-        <td><strong>R${(q.total || 0).toFixed(2)}</strong></td>
-        <td>${(q.images || []).length ? `<a href="#media" style="color:#f97316;font-weight:700;font-size:12px">🖼️ ${q.images.length}</a>` : '<span style="color:#cbd5e1">—</span>'}</td>
-        <td><span class="badge ${statusBadge(q.status)}">${esc(q.status)}</span></td>
-        <td>${fmtDate(q.created_at)}</td>
-        <td><button class="btn btn-sm btn-primary" onclick="viewQuote('${q.id}')">View</button></td>
-      </tr>`).join('')}</tbody>
-    </table></div></div>`;
+    window._quotes = { el, all: quotes, view: 'root', status: null };
+    quotesRender();
   } catch (e) { el.innerHTML = `<div class="empty">Error: ${e.message}</div>`; }
 }
+
+const QUOTE_ORDER = ['pending', 'sent', 'draft', 'accepted', 'rejected', 'expired', 'cancelled', 'paid', 'completed'];
+
+function statusLabel(s) {
+  return String(s || 'draft').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+function statusColor(s) {
+  switch (s) {
+    case 'accepted': case 'completed': case 'paid': return 'linear-gradient(135deg,#34d399,#059669)';
+    case 'rejected': case 'cancelled': return 'linear-gradient(135deg,#f87171,#dc2626)';
+    case 'pending': return 'linear-gradient(135deg,#fb923c,#ea580c)';
+    case 'sent': return 'linear-gradient(135deg,#60a5fa,#2563eb)';
+    default: return 'linear-gradient(135deg,#94a3b8,#64748b)';
+  }
+}
+
+function quotesRender() {
+  const s = window._quotes;
+  if (!s) return;
+  const CHEV = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  const BACK = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+  const DOC = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>';
+
+  let body = '', trail = '', backBtn = '';
+
+  if (s.view === 'root') {
+    const counts = {};
+    s.all.forEach(q => { const k = q.status || 'draft'; counts[k] = (counts[k] || 0) + 1; });
+    const statuses = Object.keys(counts).sort((a, b) => {
+      const ia = QUOTE_ORDER.indexOf(a); const ib = QUOTE_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    trail = '<span class="crumb-cur">Quotes</span>';
+    body = `<p class="media-hint">Choose a status, then open a quote.</p>
+      <div class="media-cats">${statuses.map(st => `<button class="media-cat" onclick="quotesGo('status','${jsq(st)}')">
+        <span class="mc-ic" style="background:${statusColor(st)}">${DOC}</span>
+        <span class="mc-txt"><span class="mc-title">${esc(statusLabel(st))}</span><span class="mc-count">${counts[st]} quote${counts[st] === 1 ? '' : 's'}</span></span>
+        <span class="mc-go">${CHEV}</span>
+      </button>`).join('')}</div>`;
+  } else {
+    backBtn = `<button class="crumb-back" onclick="quotesGo('root')">${BACK}</button>`;
+    trail = `<button class="crumb-link" onclick="quotesGo('root')">Quotes</button><span class="crumb-sep">/</span><span class="crumb-cur">${esc(statusLabel(s.status))}</span>`;
+    const list = s.all.filter(q => (q.status || 'draft') === s.status);
+    body = list.map(q => {
+      const imgs = (q.images || []).length;
+      return `<button class="quote-card" onclick="viewQuote('${q.id}')">
+        <span class="qc-num">${esc(q.quote_number || '—')}</span>
+        <span class="qc-main"><span class="qc-title">${esc(q.title || 'Untitled quote')}</span><span class="qc-sub">${esc(q.profiles?.full_name || '—')} · ${fmtDate(q.created_at)}${imgs ? ' · ' + imgs + ' photo' + (imgs === 1 ? '' : 's') : ''}</span></span>
+        <span class="qc-total">R${(q.total || 0).toFixed(2)}</span>
+        <span class="badge ${statusBadge(q.status)}">${esc(q.status)}</span>
+        <span class="qc-go">${CHEV}</span>
+      </button>`;
+    }).join('') || '<div class="empty">No quotes with this status.</div>';
+  }
+
+  s.el.innerHTML = `<div class="media-bar">${backBtn}<div class="crumb">${trail}</div></div>${body}`;
+}
+
+window.quotesGo = function(view, status) {
+  const s = window._quotes;
+  if (!s) return;
+  s.view = view; s.status = status || null;
+  quotesRender();
+};
 
 let _quote = null;
 
