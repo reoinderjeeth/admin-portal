@@ -705,6 +705,28 @@ tr:hover td{background:#d9e8fb}
 .folder.open .folder-chev{ transform:rotate(90deg); }
 .folder-body{ display:none; padding:2px 14px 14px; }
 .folder.open .folder-body{ display:block; }
+
+/* Media library drill-down (category → folder → photos) */
+.media-bar{ display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+.crumb{ display:flex; align-items:center; gap:8px; font-size:13px; color:#64748b; flex-wrap:wrap; }
+.crumb-link{ background:none; border:none; padding:0; font:inherit; font-weight:700; color:#2563eb; cursor:pointer; }
+.crumb-link:hover{ text-decoration:underline; }
+.crumb-sep{ color:#b6c2d2; }
+.crumb-cur{ font-weight:800; color:#0a1929; }
+.crumb-back{ width:34px; height:34px; border-radius:10px; border:1px solid #d7e1ee; background:#f5f9fd; color:#334155; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto; }
+.crumb-back:hover{ border-color:rgba(249,115,22,.5); color:#ea580c; }
+.media-hint{ font-size:12.5px; color:#7c8aa0; margin-bottom:16px; }
+.media-cats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+.media-cat{ display:flex; align-items:center; gap:14px; text-align:left; padding:20px; border-radius:16px; border:1px solid #d7e1ee; background:linear-gradient(180deg,#f5f9fd,#eaf1fa); cursor:pointer; font:inherit; box-shadow:0 6px 18px rgba(15,35,65,.06); transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.media-cat:hover{ transform:translateY(-2px); box-shadow:0 14px 30px rgba(15,35,65,.15); border-color:rgba(249,115,22,.55); }
+.mc-ic{ width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; color:#fff; background:linear-gradient(135deg,#fb923c,#ea580c); box-shadow:0 4px 12px rgba(249,115,22,.35); flex:0 0 auto; }
+.mc-txt{ display:flex; flex-direction:column; gap:2px; }
+.mc-title{ font-size:14px; font-weight:800; color:#0a1929; }
+.mc-count{ font-size:12px; color:#7c8aa0; }
+.mc-go{ margin-left:auto; color:#94a3b8; display:flex; }
+.media-cat:hover .mc-go{ color:#ea580c; }
+.folder-row{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:12px 14px; margin-bottom:8px; border-radius:14px; border:1px solid #d7e1ee; background:linear-gradient(180deg,#f5f9fd,#edf3fb); cursor:pointer; font:inherit; }
+.folder-row:hover{ border-color:rgba(249,115,22,.45); background:rgba(37,99,235,.04); }
 </style>
 </head>
 <body>
@@ -718,7 +740,7 @@ const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Bump when shipping so a cached copy is obvious instead of confusing.
-const BUILD = 'ui-premium-9';
+const BUILD = 'ui-premium-10';
 
 // Loads every trace of client <-> installer communication for a job.
 // NOTE: messages and calls are keyed to job_id (NOT NULL) and have no
@@ -3045,50 +3067,68 @@ async function loadMedia(el) {
     const total = jobPhotos.length + quotePhotos.length + bizMedia.length;
     if (!total) { el.innerHTML = '<div class="empty">No images uploaded yet</div>'; return; }
 
-    const FOLDER_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
-    const CHEV_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
-
-    const tile = (it) => `<div class="photo-tile" style="background-image:url('${esc(it.url)}')" title="${esc(it.ref || '')}" onclick="event.stopPropagation();openLightbox('${jsq(it.url)}', '${jsq((it.ref || '') + ' — ' + (it.desc || ''))}')">
-      <span class="pt-zoom">${GALLERY_ZOOM}</span>
-      <span class="pt-cap">${esc(it.desc || it.ref || 'Photo')}</span>
-    </div>`;
-
-    const folders = (items, subFn) => {
-      const by = {};
-      items.forEach(it => { const k = it.ref || '—'; (by[k] = by[k] || []).push(it); });
-      return Object.entries(by).map(([ref, arr]) => `
-        <div class="folder">
-          <div class="folder-head" onclick="this.parentElement.classList.toggle('open')">
-            <span class="folder-ic">${FOLDER_SVG}</span>
-            <div>
-              <div class="folder-name">${esc(ref)}</div>
-              ${subFn ? `<div class="folder-sub">${esc(subFn(arr))}</div>` : ''}
-            </div>
-            <span class="folder-count">${arr.length}</span>
-            <span class="folder-chev">${CHEV_SVG}</span>
-          </div>
-          <div class="folder-body"><div class="photo-grid">${arr.map(tile).join('')}</div></div>
-        </div>`).join('');
-    };
-
-    const section = (title, items, subFn) => items.length ? `
-      <div class="media-section">
-        <h2>${title} <span class="count-pill">${items.length}</span></h2>
-        ${folders(items, subFn)}
-      </div>` : '';
-
-    const jobSub = arr => (arr[0].desc || '').substring(0, 60);
-    el.innerHTML = `
-      <div class="card" style="margin-bottom:20px"><h2>Media Library (${total})</h2>
-        <p style="font-size:13px;color:#64748b">Photos are filed by job, quote and business. Click a folder to open it.</p>
-      </div>
-      ${section('Job Photos', jobPhotos, jobSub)}
-      ${section('Quote Photos', quotePhotos, jobSub)}
-      ${section('Business Media', bizMedia, arr => [...new Set(arr.map(x => x.desc))].join(' · '))}`;
+    window._media = { el, sets: { job: jobPhotos, quote: quotePhotos, biz: bizMedia }, view: 'root', cat: null, ref: null };
+    mediaRender();
   } catch (e) {
     el.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
   }
 }
+
+function mediaRender() {
+  const s = window._media;
+  if (!s) return;
+  const FOLDER_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+  const CHEV_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  const BACK_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+  const CATS = [
+    { key: 'job', label: 'Job Photos', svg: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>' },
+    { key: 'quote', label: 'Quote Photos', svg: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>' },
+    { key: 'biz', label: 'Business Media', svg: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>' },
+  ];
+  const cat = CATS.find(c => c.key === s.cat);
+  const tile = (it) => `<div class="photo-tile" style="background-image:url('${esc(it.url)}')" title="${esc(it.ref || '')}" onclick="openLightbox('${jsq(it.url)}', '${jsq((it.ref || '') + ' — ' + (it.desc || ''))}')"><span class="pt-zoom">${GALLERY_ZOOM}</span><span class="pt-cap">${esc(it.desc || it.ref || 'Photo')}</span></div>`;
+
+  let body = '', trail = '', backBtn = '';
+
+  if (s.view === 'root') {
+    trail = '<span class="crumb-cur">Media Library</span>';
+    body = `<p class="media-hint">Choose a category, then a folder, then the photos inside it.</p>
+      <div class="media-cats">${CATS.map(c => `<button class="media-cat" onclick="mediaGo('cat','${c.key}')">
+        <span class="mc-ic">${c.svg}</span>
+        <span class="mc-txt"><span class="mc-title">${c.label}</span><span class="mc-count">${(s.sets[c.key] || []).length} photos</span></span>
+        <span class="mc-go">${CHEV_SVG}</span>
+      </button>`).join('')}</div>`;
+  } else if (s.view === 'cat') {
+    backBtn = `<button class="crumb-back" onclick="mediaGo('root')">${BACK_SVG}</button>`;
+    trail = `<button class="crumb-link" onclick="mediaGo('root')">Media Library</button><span class="crumb-sep">/</span><span class="crumb-cur">${cat.label}</span>`;
+    const items = s.sets[s.cat] || [];
+    const by = {};
+    items.forEach(it => { const k = it.ref || '—'; (by[k] = by[k] || []).push(it); });
+    body = Object.entries(by).map(([ref, arr]) => {
+      const sub = s.cat === 'biz' ? [...new Set(arr.map(x => x.desc))].join(' · ') : ((arr[0].desc || '').substring(0, 60));
+      return `<button class="folder-row" onclick="mediaGo('folder','${s.cat}','${jsq(ref)}')">
+        <span class="folder-ic">${FOLDER_SVG}</span>
+        <span style="flex:1;min-width:0"><span class="folder-name">${esc(ref)}</span>${sub ? `<span class="folder-sub" style="display:block">${esc(sub)}</span>` : ''}</span>
+        <span class="folder-count">${arr.length}</span>
+        <span class="folder-chev">${CHEV_SVG}</span>
+      </button>`;
+    }).join('') || '<div class="empty">No folders here.</div>';
+  } else {
+    backBtn = `<button class="crumb-back" onclick="mediaGo('cat','${s.cat}')">${BACK_SVG}</button>`;
+    trail = `<button class="crumb-link" onclick="mediaGo('root')">Media Library</button><span class="crumb-sep">/</span><button class="crumb-link" onclick="mediaGo('cat','${s.cat}')">${cat.label}</button><span class="crumb-sep">/</span><span class="crumb-cur">${esc(s.ref)}</span>`;
+    const arr = (s.sets[s.cat] || []).filter(it => (it.ref || '—') === s.ref);
+    body = `<div class="photo-grid">${arr.map(tile).join('')}</div>`;
+  }
+
+  s.el.innerHTML = `<div class="media-bar">${backBtn}<div class="crumb">${trail}</div></div>${body}`;
+}
+
+window.mediaGo = function(view, cat, ref) {
+  const s = window._media;
+  if (!s) return;
+  s.view = view; s.cat = cat || null; s.ref = ref || null;
+  mediaRender();
+};
 
 window.openLightbox = function(url, caption) {
   const box = document.createElement('div');
